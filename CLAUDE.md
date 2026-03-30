@@ -158,6 +158,25 @@ rust/crates/
 | 13 | Scheduler | Activa |
 | 14 | Recipes | Activa |
 
+## Fixes aplicados (30 Mar 2026)
+
+Correcciones quirúrgicas al framework para habilitar funcionalidad core:
+
+| Archivo | Fix |
+|---------|-----|
+| `src/openjarvis/cli/serve.py` | Añadido bloque de inicialización de `TraceStore` (igual al de telemetry) + `trace_store` pasado a `create_app` |
+| `src/openjarvis/server/app.py` | Añadido parámetro `trace_store=None` a `create_app` + `app.state.trace_store` |
+| `src/openjarvis/server/routes.py` | `_handle_agent` ahora recibe `trace_store` y `bus`; envuelve `agent.run()` con `TraceCollector` cuando hay store |
+| `src/openjarvis/server/api_routes.py` | Rutas `/v1/traces` usan `app.state.trace_store` o `TraceStore(DEFAULT_CONFIG_DIR/traces.db)` en lugar de `TraceStore()` sin args |
+| `Iniciar_TEO.bat` | `TAVILY_API_KEY` seteado antes de `jarvis serve` — web_search estaba roto por falta de esta variable |
+| `config.toml` (raíz) | Limpiado — refactorizado al estado actual, removida Tavily key expuesta, nota que el framework NO lee este archivo |
+| `~/.openjarvis/config.toml` | `[learning] enabled = true`, `update_interval = 50` |
+
+**Resultado esperado al reiniciar TEO:**
+- `traces.db` empezará a recibir trazas de cada interacción del orquestador
+- `web_search` funcionará (Tavily key disponible)
+- Learning loop activo (acumulará datos para SFT tras 50+ interacciones)
+
 ## Advertencias importantes
 
 - **No modificar el proyecto original** — es un framework de Stanford, los cambios deben ir en config o en archivos propios (TEO, operadores, channels)

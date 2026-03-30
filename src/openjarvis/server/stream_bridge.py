@@ -153,9 +153,14 @@ class AgentStreamBridge:
             )
             yield f"data: {first_chunk.model_dump_json()}\n\n"
 
-            # Drain queue until the agent finishes
+            # Drain queue until the agent finishes (120s timeout per event)
             while True:
-                item = await self._queue.get()
+                try:
+                    item = await asyncio.wait_for(self._queue.get(), timeout=120.0)
+                except asyncio.TimeoutError:
+                    agent_task.cancel()
+                    yield self._format_named_event("error", {"detail": "Agent timeout after 120s"})
+                    break
 
                 if item is _DONE:
                     break

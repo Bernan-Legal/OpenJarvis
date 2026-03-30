@@ -48,17 +48,19 @@ async def chat_completions(request_body: ChatCompletionRequest, request: Request
 
     if request_body.stream:
         bus = getattr(request.app.state, "bus", None)
-        # Use the agent stream bridge only when tools are present (the
-        # bridge runs agent.run() synchronously and word-splits the result,
-        # so it can't stream tokens in real-time).  For plain chat, stream
-        # directly from the engine for true token-by-token output.
-        if agent is not None and bus is not None and request_body.tools:
+        # Always route through the agent when one is configured — the agent
+        # holds the tools (web_search, code_interpreter, etc.) that are
+        # registered server-side and never present in request_body.tools.
+        # The stream bridge word-splits the result for SSE compatibility.
+        if agent is not None and bus is not None:
             return await _handle_agent_stream(agent, bus, model, request_body)
         return await _handle_stream(engine, model, request_body)
 
     # Non-streaming: use agent if available, otherwise direct engine call
     if agent is not None:
-        return _handle_agent(agent, model, request_body)
+        trace_store = getattr(request.app.state, "trace_store", None)
+        bus = getattr(request.app.state, "bus", None)
+        return _handle_agent(agent, model, request_body, trace_store=trace_store, bus=bus)
 
     bus = getattr(request.app.state, "bus", None)
     return _handle_direct(engine, model, request_body, bus=bus)
@@ -122,7 +124,7 @@ def _handle_direct(
 
 
 def _handle_agent(
-    agent, model: str, req: ChatCompletionRequest,
+    agent, model: str, req: ChatCompletionRequest, *, trace_store=None, bus=None,
 ) -> ChatCompletionResponse:
     """Run through agent."""
     from openjarvis.agents._stubs import AgentContext
@@ -142,7 +144,12 @@ def _handle_agent(
     if model:
         agent._model = model
     try:
-        result = agent.run(input_text, context=ctx)
+        if trace_store is not None:
+            from openjarvis.traces.collector import TraceCollector
+            collector = TraceCollector(agent, store=trace_store, bus=bus)
+            result = collector.run(input_text, context=ctx)
+        else:
+            result = agent.run(input_text, context=ctx)
     finally:
         agent._model = original_model
 

@@ -211,6 +211,20 @@ def serve(
             console.print(f"[yellow]Agent '{agent_key}' failed to load: {exc}[/yellow]")
             traceback.print_exc()
 
+    # Set up trace store
+    trace_store = None
+    if config.traces.enabled:
+        try:
+            from pathlib import Path
+
+            from openjarvis.traces.store import TraceStore
+
+            db_path = Path(config.traces.db_path).expanduser()
+            db_path.parent.mkdir(parents=True, exist_ok=True)
+            trace_store = TraceStore(str(db_path))
+        except Exception as exc:
+            logger.debug("Trace store init failed: %s", exc)
+
     # Set up channel backend if enabled
     channel_bridge = None
     if config.channel.enabled and config.channel.default_channel:
@@ -293,6 +307,7 @@ def serve(
         speech_backend=speech_backend,
         agent_manager=agent_manager,
         agent_scheduler=agent_scheduler,
+        trace_store=trace_store,
     )
 
     console.print(

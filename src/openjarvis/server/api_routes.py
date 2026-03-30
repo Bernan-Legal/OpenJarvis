@@ -179,8 +179,12 @@ traces_router = APIRouter(prefix="/v1/traces", tags=["traces"])
 async def list_traces(request: Request, limit: int = 20):
     """List recent traces."""
     try:
+        from openjarvis.core.config import DEFAULT_CONFIG_DIR
         from openjarvis.traces.store import TraceStore
-        store = TraceStore()
+        # Use store from app state if available, else open directly
+        store = getattr(request.app.state, "trace_store", None)
+        if store is None:
+            store = TraceStore(str(DEFAULT_CONFIG_DIR / "traces.db"))
         traces = store.recent(limit=limit)
         items = [
             t.to_dict() if hasattr(t, "to_dict") else str(t)
@@ -194,8 +198,11 @@ async def list_traces(request: Request, limit: int = 20):
 async def get_trace(trace_id: str, request: Request):
     """Get a specific trace by ID."""
     try:
+        from openjarvis.core.config import DEFAULT_CONFIG_DIR
         from openjarvis.traces.store import TraceStore
-        store = TraceStore()
+        store = getattr(request.app.state, "trace_store", None)
+        if store is None:
+            store = TraceStore(str(DEFAULT_CONFIG_DIR / "traces.db"))
         trace = store.get(trace_id)
         if trace is None:
             raise HTTPException(status_code=404, detail="Trace not found")
