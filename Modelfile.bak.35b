@@ -1,0 +1,3 @@
+FROM qwen3.5:35b
+PARAMETER gpu_layers -1
+PARAMETER num_gpu 999
