@@ -43,6 +43,25 @@ uv sync --extra server                # FastAPI REST API
 
 Combinar en un solo comando: `uv sync --extra memory-faiss --extra memory-pdf`
 
+## Interfaz principal de TEO
+
+TEO se usa principalmente via la interfaz web, NO via `jarvis ask` en CLI:
+
+```
+Iniciar_TEO.bat  (acceso directo en escritorio)
+    → jarvis serve --host 0.0.0.0 --port 8000   (backend API)
+    → npm run dev (frontend React en localhost:5173)
+    → navegador abre automáticamente
+```
+
+El servidor usa `orchestrator` como agente por defecto (doc oficial).
+Las herramientas se configuran en `[server]` y `[agent]` del config.
+
+**`jarvis ask` en CLI** = modo directo sin agente (LLM puro). Para activar agente:
+```bash
+uv run jarvis ask -a orchestrator --tools "web_search,code_interpreter,file_read,shell_exec" "query"
+```
+
 ## Comandos clave
 
 ```bash
