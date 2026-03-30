@@ -1,0 +1,39 @@
+# OpenJarvis config optimizado RTX 5090 + Qwen3.5 35B
+# Hardware: AMD64 32 cores + RTX 5090 32GB VRAM
+
+[engine]
+default = "ollama"
+
+[engine.ollama]
+host = "http://localhost:11434"
+keep_alive = "1h"  # Mantener modelos en VRAM
+
+[intelligence]
+default_model = "qwen3.5:35b"
+max_context = 32768
+temperature = 0.1  # Más determinístico para agentes legales
+
+[agent]
+default_agent = "simple"
+max_ticks = 10     # Límite anti-loop infinito
+timeout = 300      # 5min por tick
+
+[tools]
+enabled = ["code_interpreter", "web_search", "file_read", "shell_exec", "filesystem"]
+tavily_api_key = "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"
+
+[sandboox]
+enabled = true
+
+# Scheduler para tus 5 agentes monitor_operative
+[scheduler]
+default_interval = "900s"  # 15min ciclos (antes 3600s)
+max_concurrent = 3         # Máx 3 agentes simultáneos
+
+[logging]
+level = "INFO"
+file = "logs/openjarvis.log"
+
+[persistence]
+db_path = "data/agents.db"
+backup_interval = "6h"
