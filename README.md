@@ -120,3 +120,41 @@ OpenJarvis is part of [Intelligence Per Watt](https://www.intelligence-per-watt.
 ## License
 
 [Apache 2.0](LICENSE)
+
+---
+
+## TEO — Local Deployment (ADN Legal / RTX 5090)
+
+This repository also contains **TEO**, a customized operational agent built on OpenJarvis for [Bernan Salazar / ADN Legal CR](https://adnlegal.cr), running locally on an NVIDIA RTX 5090.
+
+### Stack
+
+| Component | Value |
+|-----------|-------|
+| Base model | `qwen2.5:14b` via Ollama (`teo:latest`) |
+| Agent | `orchestrator` (function-calling mode) |
+| Tools | `web_search` (Tavily), `code_interpreter`, `file_read`, `shell_exec`, `think`, `calculator` |
+| API server | FastAPI on `http://0.0.0.0:8000` |
+| Frontend | React + Vite on `http://localhost:5173` |
+| Config | `~/.openjarvis/config.toml` |
+
+### Quick Start (TEO)
+
+```bash
+# Start TEO (backend + frontend + browser)
+Iniciar_TEO.bat          # Windows shortcut on Desktop (contains TAVILY_API_KEY — gitignored)
+
+# Manual start (PowerShell)
+.\start_openjarvis.ps1
+
+# Rebuild TEO model after Modelfile changes
+ollama create teo -f Modelfile
+ollama create teo -f Modelfile_TEO.txt
+```
+
+### Notes
+
+- **Ollama host:** Always `http://127.0.0.1:11434` — Docker Desktop intercepts `localhost` on IPv6.
+- **Memory:** `~/.openjarvis/memory.db` (SQLite). Never run `jarvis memory` on the project root — it indexes `rust/target/` (GBs of compiled binaries).
+- **Modelfiles:** `Modelfile` (base layers) → `Modelfile_TEO.txt` (system prompt + TEO identity).
+- See [CLAUDE.md](CLAUDE.md) for full architecture, fixes log, and operational notes.
