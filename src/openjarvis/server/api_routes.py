@@ -185,7 +185,7 @@ async def list_traces(request: Request, limit: int = 20):
         store = getattr(request.app.state, "trace_store", None)
         if store is None:
             store = TraceStore(str(DEFAULT_CONFIG_DIR / "traces.db"))
-        traces = store.recent(limit=limit)
+        traces = store.list_traces(limit=limit)
         items = [
             t.to_dict() if hasattr(t, "to_dict") else str(t)
             for t in traces

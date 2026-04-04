@@ -205,6 +205,10 @@ def serve(
                 if getattr(agent_cls, "accepts_tools", False):
                     agent_kwargs["max_turns"] = config.agent.max_turns
 
+                # Pass generation defaults from intelligence config
+                agent_kwargs["max_tokens"] = config.intelligence.max_tokens
+                agent_kwargs["temperature"] = config.intelligence.temperature
+
                 agent = agent_cls(engine, model_name, **agent_kwargs)
         except Exception as exc:
             import traceback

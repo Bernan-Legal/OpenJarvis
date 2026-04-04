@@ -34,12 +34,14 @@ class OllamaEngine(InferenceEngine):
         host: str | None = None,
         *,
         timeout: float = 1800.0,
+        keep_alive: str = "2h",
     ) -> None:
         # Priority: explicit host (from config.toml) > OLLAMA_HOST env var > default
         if host is None:
             env_host = os.environ.get("OLLAMA_HOST")
             host = env_host or self._DEFAULT_HOST
         self._host = host.rstrip("/")
+        self._keep_alive = keep_alive
         self._client = httpx.Client(base_url=self._host, timeout=timeout)
         # Last stream usage — captured from Ollama's final chunk
         self._last_stream_usage: Dict[str, int] = {}
@@ -68,6 +70,7 @@ class OllamaEngine(InferenceEngine):
             "model": model,
             "messages": msg_dicts,
             "stream": False,
+            "keep_alive": self._keep_alive,
             "options": {
                 "temperature": temperature,
                 "num_predict": max_tokens,
@@ -156,6 +159,7 @@ class OllamaEngine(InferenceEngine):
             "model": model,
             "messages": messages_to_dicts(messages),
             "stream": True,
+            "keep_alive": self._keep_alive,
             "options": {
                 "temperature": temperature,
                 "num_predict": max_tokens,
