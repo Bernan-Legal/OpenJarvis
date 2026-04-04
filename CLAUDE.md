@@ -113,7 +113,7 @@ El warning `teo not found` en `jarvis doctor` es esperado — Ollama registra el
 - **Python:** 3.10.18 (venv en `.venv/`)
 - **uv:** 0.10.10
 - **GPU:** NVIDIA RTX 5090, CUDA 12.8, Blackwell (compute 12.0)
-- **Ollama:** `http://localhost:11434`
+- **Ollama:** `http://127.0.0.1:11434` — **NO usar `localhost`**: Docker Desktop intercepta `localhost:11434` (IPv6 `::1`) con solo 2 modelos. El Ollama nativo escucha en `127.0.0.1:11434` y tiene todos los modelos.
 - **Modelos disponibles:** `teo:latest`, `qwen3.5:35b`, `qwen2.5:14b-instruct`, `qwen2.5:7b-instruct`
 - **Node.js:** v24.14.0 (requerido para WhatsApp Baileys bridge)
 
