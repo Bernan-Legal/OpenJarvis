@@ -40,6 +40,9 @@ Thumbs.db
 .env
 .env.*
 
+# Scripts de inicio locales (contienen API keys)
+Iniciar_TEO.bat
+
 # Project
 *.sqlite
 *.db

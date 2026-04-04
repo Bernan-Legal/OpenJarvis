@@ -48,19 +48,36 @@ Combinar en un solo comando: `uv sync --extra memory-faiss --extra memory-pdf`
 TEO se usa principalmente via la interfaz web, NO via `jarvis ask` en CLI:
 
 ```
-Iniciar_TEO.bat  (acceso directo en escritorio)
-    → jarvis serve --host 0.0.0.0 --port 8000   (backend API)
-    → npm run dev (frontend React en localhost:5173)
-    → navegador abre automáticamente
+Iniciar_TEO.bat           ← acceso directo en escritorio (GITIGNORED — contiene API key)
+start_openjarvis.ps1      ← alternativa PowerShell (en git, sin key hardcoded)
+    → set TAVILY_API_KEY=...
+    → jarvis serve --host 0.0.0.0 --port 8000   (backend API, ventana separada)
+    → npm run dev en frontend/                   (React en localhost:5173, ventana separada)
+    → abre http://localhost:5173 en el navegador
 ```
 
 El servidor usa `orchestrator` como agente por defecto (doc oficial).
 Las herramientas se configuran en `[server]` y `[agent]` del config.
 
+**Acceso directo en escritorio:** `C:\Users\USUARIO\Desktop\Iniciar TEO.lnk`
+→ apunta a `C:\proyectos_5090\OpenJarvis\Iniciar_TEO.bat`
+
 **`jarvis ask` en CLI** = modo directo sin agente (LLM puro). Para activar agente:
 ```bash
 uv run jarvis ask -a orchestrator --tools "web_search,code_interpreter,file_read,shell_exec" "query"
 ```
+
+## Desktop Tauri App (modo alternativo)
+
+El proyecto tiene **dos** apps Tauri separadas:
+
+| Directorio | Propósito | Puerto |
+|-----------|-----------|--------|
+| `frontend/src-tauri/` | Tauri wrapper del frontend React (dev mode) | 8000 |
+| `desktop/src-tauri/` | App standalone con auto-boot de jarvis serve | 8222 |
+
+**Modo web (recomendado para TEO):** `Iniciar_TEO.bat` → navegador en localhost:5173  
+**Modo Tauri desktop completo:** `cd desktop && npm run tauri dev` (auto-inicia todo en puerto 8222)
 
 ## Comandos clave
 
@@ -158,24 +175,35 @@ rust/crates/
 | 13 | Scheduler | Activa |
 | 14 | Recipes | Activa |
 
-## Fixes aplicados (30 Mar 2026)
+## Fixes aplicados
 
-Correcciones quirúrgicas al framework para habilitar funcionalidad core:
+### 30 Mar 2026 — Correcciones core (traces, web_search, config)
 
 | Archivo | Fix |
 |---------|-----|
-| `src/openjarvis/cli/serve.py` | Añadido bloque de inicialización de `TraceStore` (igual al de telemetry) + `trace_store` pasado a `create_app` |
+| `src/openjarvis/cli/serve.py` | Añadido bloque de inicialización de `TraceStore` + `trace_store` pasado a `create_app` |
 | `src/openjarvis/server/app.py` | Añadido parámetro `trace_store=None` a `create_app` + `app.state.trace_store` |
-| `src/openjarvis/server/routes.py` | `_handle_agent` ahora recibe `trace_store` y `bus`; envuelve `agent.run()` con `TraceCollector` cuando hay store |
-| `src/openjarvis/server/api_routes.py` | Rutas `/v1/traces` usan `app.state.trace_store` o `TraceStore(DEFAULT_CONFIG_DIR/traces.db)` en lugar de `TraceStore()` sin args |
-| `Iniciar_TEO.bat` | `TAVILY_API_KEY` seteado antes de `jarvis serve` — web_search estaba roto por falta de esta variable |
-| `config.toml` (raíz) | Limpiado — refactorizado al estado actual, removida Tavily key expuesta, nota que el framework NO lee este archivo |
+| `src/openjarvis/server/routes.py` | `_handle_agent` envuelve `agent.run()` con `TraceCollector` cuando hay store |
+| `src/openjarvis/server/api_routes.py` | Rutas `/v1/traces` usan `app.state.trace_store` con path explícito |
+| `config.toml` (raíz) | Limpiado — removida Tavily key expuesta, nota que el framework NO lee este archivo |
 | `~/.openjarvis/config.toml` | `[learning] enabled = true`, `update_interval = 50` |
 
-**Resultado esperado al reiniciar TEO:**
-- `traces.db` empezará a recibir trazas de cada interacción del orquestador
-- `web_search` funcionará (Tavily key disponible)
-- Learning loop activo (acumulará datos para SFT tras 50+ interacciones)
+### 03 Abr 2026 — Reparación botón de inicio + Tauri commands
+
+| Archivo | Fix |
+|---------|-----|
+| `Iniciar_TEO.bat` | Recreado (se había perdido) — sets `TAVILY_API_KEY`, arranca backend + frontend + browser |
+| `start_openjarvis.ps1` | Reconstruido desde cero (estaba vacío) — equivalente PowerShell |
+| `Iniciar TEO.lnk` (Desktop) | Redirigido de `cmd.exe` → `Iniciar_TEO.bat` |
+| `frontend/src-tauri/src/lib.rs` | Añadidos 7 comandos Tauri faltantes: `get_setup_status`, `get_api_base`, `fetch_models`, `pull_ollama_model`, `delete_ollama_model`, `transcribe_audio`, `speech_health` |
+| `frontend/src-tauri/Cargo.toml` | Añadida feature `multipart` a reqwest (requerida por `transcribe_audio`) |
+| `.gitignore` | Añadido `Iniciar_TEO.bat` (contiene API key, no debe ir a git) |
+
+**Resultado esperado:**
+- `traces.db` recibe trazas de cada interacción del orquestador
+- `web_search` funciona (Tavily key disponible via `Iniciar_TEO.bat`)
+- Learning loop activo (acumula datos para SFT tras 50+ interacciones)
+- Tauri desktop app (`frontend/src-tauri`) funcional — SetupScreen no se cuelga
 
 ## Advertencias importantes
 

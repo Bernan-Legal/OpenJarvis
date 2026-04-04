@@ -1,7 +1,91 @@
+use std::time::Duration;
 use tauri::Manager;
 use tauri::menu::{MenuBuilder, MenuItemBuilder};
 use tauri::tray::TrayIconBuilder;
 use tauri_plugin_autostart::MacosLauncher;
+
+const OLLAMA_PORT: u16 = 11434;
+const JARVIS_PORT: u16 = 8000;
+
+// ---------------------------------------------------------------------------
+// Setup status — reported to the SetupScreen on first launch
+// ---------------------------------------------------------------------------
+
+#[derive(serde::Serialize, Clone)]
+struct SetupStatus {
+    phase: String,
+    detail: String,
+    ollama_ready: bool,
+    model_ready: bool,
+    server_ready: bool,
+    error: Option<String>,
+}
+
+/// Check whether at least one model is loaded in Ollama.
+async fn ollama_has_model(client: &reqwest::Client) -> bool {
+    let url = format!("http://127.0.0.1:{}/api/tags", OLLAMA_PORT);
+    if let Ok(resp) = client.get(&url).send().await {
+        if let Ok(body) = resp.json::<serde_json::Value>().await {
+            return body["models"]
+                .as_array()
+                .map(|m| !m.is_empty())
+                .unwrap_or(false);
+        }
+    }
+    false
+}
+
+#[tauri::command]
+async fn get_setup_status() -> SetupStatus {
+    let client = reqwest::Client::builder()
+        .timeout(Duration::from_secs(3))
+        .build()
+        .unwrap_or_else(|_| reqwest::Client::new());
+
+    let ollama_ready = client
+        .get(format!("http://127.0.0.1:{}/api/tags", OLLAMA_PORT))
+        .send()
+        .await
+        .map(|r| r.status().is_success())
+        .unwrap_or(false);
+
+    let model_ready = if ollama_ready {
+        ollama_has_model(&client).await
+    } else {
+        false
+    };
+
+    let server_ready = client
+        .get(format!("http://127.0.0.1:{}/health", JARVIS_PORT))
+        .send()
+        .await
+        .map(|r| r.status().is_success())
+        .unwrap_or(false);
+
+    let (phase, detail) = if ollama_ready && model_ready && server_ready {
+        ("ready".to_string(), "All systems operational".to_string())
+    } else if !ollama_ready {
+        ("starting".to_string(), "Waiting for Ollama...".to_string())
+    } else if !model_ready {
+        ("starting".to_string(), "Loading AI model...".to_string())
+    } else {
+        ("starting".to_string(), "Waiting for API server...".to_string())
+    };
+
+    SetupStatus {
+        phase,
+        detail,
+        ollama_ready,
+        model_ready,
+        server_ready,
+        error: None,
+    }
+}
+
+#[tauri::command]
+fn get_api_base() -> String {
+    format!("http://127.0.0.1:{}", JARVIS_PORT)
+}
 
 /// Fetch health status from the OpenJarvis API server.
 #[tauri::command]
@@ -151,6 +235,89 @@ async fn fetch_agents(api_url: String) -> Result<serde_json::Value, String> {
     Ok(body)
 }
 
+/// Fetch available models from the API server.
+#[tauri::command]
+async fn fetch_models(api_url: String) -> Result<serde_json::Value, String> {
+    let url = format!("{}/v1/models", api_url);
+    let resp = reqwest::get(&url)
+        .await
+        .map_err(|e| format!("Connection failed: {}", e))?;
+    resp.json().await.map_err(|e| format!("Invalid response: {}", e))
+}
+
+/// Pull a model via Ollama.
+#[tauri::command]
+async fn pull_ollama_model(model_name: String) -> Result<serde_json::Value, String> {
+    let client = reqwest::Client::builder()
+        .timeout(Duration::from_secs(600))
+        .build()
+        .map_err(|e| e.to_string())?;
+    let resp = client
+        .post(format!("http://127.0.0.1:{}/api/pull", OLLAMA_PORT))
+        .json(&serde_json::json!({ "name": model_name, "stream": false }))
+        .send()
+        .await
+        .map_err(|e| format!("Failed to pull model: {}", e))?;
+    if resp.status().is_success() {
+        Ok(serde_json::json!({ "status": "ok", "model": model_name }))
+    } else {
+        Err(format!("Pull failed with status: {}", resp.status()))
+    }
+}
+
+/// Delete a model from Ollama.
+#[tauri::command]
+async fn delete_ollama_model(model_name: String) -> Result<serde_json::Value, String> {
+    let client = reqwest::Client::builder()
+        .timeout(Duration::from_secs(30))
+        .build()
+        .map_err(|e| e.to_string())?;
+    let resp = client
+        .delete(format!("http://127.0.0.1:{}/api/delete", OLLAMA_PORT))
+        .json(&serde_json::json!({ "name": model_name }))
+        .send()
+        .await
+        .map_err(|e| format!("Failed to delete model: {}", e))?;
+    if resp.status().is_success() {
+        Ok(serde_json::json!({ "status": "ok", "model": model_name }))
+    } else {
+        Err(format!("Delete failed with status: {}", resp.status()))
+    }
+}
+
+/// Transcribe audio via the speech API endpoint.
+#[tauri::command]
+async fn transcribe_audio(
+    api_url: String,
+    audio_data: Vec<u8>,
+    filename: String,
+) -> Result<serde_json::Value, String> {
+    let url = format!("{}/v1/speech/transcribe", api_url);
+    let part = reqwest::multipart::Part::bytes(audio_data)
+        .file_name(filename)
+        .mime_str("audio/webm")
+        .map_err(|e| format!("Multipart error: {}", e))?;
+    let form = reqwest::multipart::Form::new().part("file", part);
+    let client = reqwest::Client::new();
+    let resp = client
+        .post(&url)
+        .multipart(form)
+        .send()
+        .await
+        .map_err(|e| format!("Connection failed: {}", e))?;
+    resp.json().await.map_err(|e| format!("Invalid response: {}", e))
+}
+
+/// Check speech backend health.
+#[tauri::command]
+async fn speech_health(api_url: String) -> Result<serde_json::Value, String> {
+    let url = format!("{}/v1/speech/health", api_url);
+    let resp = reqwest::get(&url)
+        .await
+        .map_err(|e| format!("Connection failed: {}", e))?;
+    resp.json().await.map_err(|e| format!("Invalid response: {}", e))
+}
+
 /// Launch the `jarvis` CLI command via shell.
 #[tauri::command]
 async fn run_jarvis_command(args: Vec<String>) -> Result<String, String> {
@@ -229,6 +396,8 @@ pub fn run() {
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
+            get_setup_status,
+            get_api_base,
             check_health,
             fetch_energy,
             fetch_telemetry,
@@ -239,6 +408,11 @@ pub fn run() {
             fetch_memory_stats,
             search_memory,
             fetch_agents,
+            fetch_models,
+            pull_ollama_model,
+            delete_ollama_model,
+            transcribe_audio,
+            speech_health,
             run_jarvis_command,
         ])
         .run(tauri::generate_context!())
