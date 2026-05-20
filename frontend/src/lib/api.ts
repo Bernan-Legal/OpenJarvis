@@ -282,6 +282,27 @@ export async function fetchSpeechHealth(): Promise<SpeechHealth> {
 }
 
 // ---------------------------------------------------------------------------
+// File upload
+// ---------------------------------------------------------------------------
+
+export interface UploadedFile {
+  path: string;
+  filename: string;
+  size: number;
+}
+
+export async function uploadFile(file: File): Promise<UploadedFile> {
+  const formData = new FormData();
+  formData.append('file', file);
+  const res = await fetch(`${getBase()}/v1/files/upload`, {
+    method: 'POST',
+    body: formData,
+  });
+  if (!res.ok) throw new Error(`Upload failed: ${res.status}`);
+  return res.json();
+}
+
+// ---------------------------------------------------------------------------
 // Agent Manager
 // ---------------------------------------------------------------------------
 

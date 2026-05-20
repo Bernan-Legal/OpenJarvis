@@ -1,82 +1,82 @@
-import { useState, useCallback, useRef, useEffect } from 'react';
-import { transcribeAudio, fetchSpeechHealth } from '../lib/api';
+import { useState, useCallback, useRef } from 'react';
 
 export type SpeechState = 'idle' | 'recording' | 'transcribing';
+
+interface SpeechRecognitionLike {
+  continuous: boolean;
+  interimResults: boolean;
+  lang: string;
+  onresult: ((event: { results: ArrayLike<{ 0: { transcript: string } }> }) => void) | null;
+  onerror: ((event: { error: string }) => void) | null;
+  onend: (() => void) | null;
+  start(): void;
+  stop(): void;
+}
+
+function getSpeechCtor(): (new () => SpeechRecognitionLike) | undefined {
+  if (typeof window === 'undefined') return undefined;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  return (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+}
 
 export function useSpeech() {
   const [state, setState] = useState<SpeechState>('idle');
   const [error, setError] = useState<string | null>(null);
-  const [available, setAvailable] = useState(false);
-  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
-  const chunksRef = useRef<Blob[]>([]);
-  const streamRef = useRef<MediaStream | null>(null);
+  const recognitionRef = useRef<SpeechRecognitionLike | null>(null);
+  const transcriptRef = useRef<string>('');
+  const resolveRef = useRef<((text: string) => void) | null>(null);
 
-  // Check if speech backend is available on mount
-  useEffect(() => {
-    fetchSpeechHealth()
-      .then((health) => setAvailable(health.available))
-      .catch(() => setAvailable(false));
-  }, []);
+  const available = !!getSpeechCtor();
 
   const startRecording = useCallback(async (): Promise<void> => {
-    setError(null);
-
-    if (!navigator.mediaDevices?.getUserMedia) {
-      setError('Microphone not supported in this browser');
+    const Ctor = getSpeechCtor();
+    if (!Ctor) {
+      setError('Reconocimiento de voz no disponible (usa Chrome o Edge)');
       return;
     }
+    setError(null);
+    transcriptRef.current = '';
 
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      streamRef.current = stream;
+    const recognition = new Ctor();
+    recognition.continuous = true;
+    recognition.interimResults = false;
+    recognition.lang = 'es-CR';
 
-      const recorder = new MediaRecorder(stream);
-      chunksRef.current = [];
+    recognition.onresult = (event) => {
+      transcriptRef.current = Array.from(event.results as ArrayLike<{ 0: { transcript: string } }>)
+        .map((r) => r[0].transcript)
+        .join(' ');
+    };
 
-      recorder.ondataavailable = (e) => {
-        if (e.data.size > 0) chunksRef.current.push(e.data);
-      };
-
-      recorder.start();
-      mediaRecorderRef.current = recorder;
-      setState('recording');
-    } catch (err) {
-      setError('Microphone access denied');
+    recognition.onerror = (event) => {
+      if (event.error !== 'no-speech') setError(event.error);
       setState('idle');
-    }
+      recognitionRef.current = null;
+      resolveRef.current?.(transcriptRef.current);
+      resolveRef.current = null;
+    };
+
+    recognition.onend = () => {
+      setState('idle');
+      recognitionRef.current = null;
+      resolveRef.current?.(transcriptRef.current);
+      resolveRef.current = null;
+    };
+
+    recognitionRef.current = recognition;
+    recognition.start();
+    setState('recording');
   }, []);
 
-  const stopRecording = useCallback(async (): Promise<string> => {
-    return new Promise((resolve, reject) => {
-      const recorder = mediaRecorderRef.current;
-      if (!recorder || recorder.state !== 'recording') {
-        reject(new Error('Not recording'));
+  const stopRecording = useCallback((): Promise<string> => {
+    return new Promise((resolve) => {
+      const recognition = recognitionRef.current;
+      if (!recognition) {
+        resolve(transcriptRef.current);
         return;
       }
-
-      recorder.onstop = async () => {
-        setState('transcribing');
-
-        // Stop all audio tracks
-        streamRef.current?.getTracks().forEach((track) => track.stop());
-        streamRef.current = null;
-
-        const blob = new Blob(chunksRef.current, { type: recorder.mimeType || 'audio/webm' });
-        chunksRef.current = [];
-
-        try {
-          const result = await transcribeAudio(blob);
-          setState('idle');
-          resolve(result.text);
-        } catch (err) {
-          setState('idle');
-          const msg = err instanceof Error ? err.message : 'Transcription failed';
-          setError(msg);
-          reject(err);
-        }
-      };
-
-      recorder.stop();
+      resolveRef.current = resolve;
+      recognition.stop();
     });
   }, []);
 

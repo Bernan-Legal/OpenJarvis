@@ -744,6 +744,42 @@ async def start_optimize_run(req: OptimizeRunRequest, request: Request):
     return {"status": "started", "run_id": "placeholder"}
 
 
+# ---- File upload routes ----
+
+files_router = APIRouter(prefix="/v1/files", tags=["files"])
+
+
+@files_router.post("/upload")
+async def upload_file(request: Request):
+    """Save an uploaded file to ~/.openjarvis/uploads/ and return its path."""
+    import pathlib
+
+    form = await request.form()
+    upload = form.get("file")
+    if upload is None:
+        raise HTTPException(status_code=400, detail="Missing 'file' field")
+
+    upload_dir = pathlib.Path("~/.openjarvis/uploads").expanduser()
+    upload_dir.mkdir(parents=True, exist_ok=True)
+
+    original_name = getattr(upload, "filename", None) or "upload"
+    safe_name = pathlib.Path(original_name).name or "upload"
+    dest = upload_dir / safe_name
+
+    if dest.exists():
+        stem = dest.stem
+        suffix = dest.suffix
+        counter = 1
+        while dest.exists():
+            dest = upload_dir / f"{stem}_{counter}{suffix}"
+            counter += 1
+
+    content = await upload.read()
+    dest.write_bytes(content)
+
+    return {"path": str(dest), "filename": dest.name, "size": len(content)}
+
+
 def include_all_routes(app) -> None:
     """Include all extended API routers in a FastAPI app."""
     app.include_router(agents_router)
@@ -759,6 +795,7 @@ def include_all_routes(app) -> None:
     app.include_router(speech_router)
     app.include_router(feedback_router)
     app.include_router(optimize_router)
+    app.include_router(files_router)
 
     # Agent Manager routes (if available)
     try:
@@ -802,4 +839,5 @@ __all__ = [
     "speech_router",
     "feedback_router",
     "optimize_router",
+    "files_router",
 ]

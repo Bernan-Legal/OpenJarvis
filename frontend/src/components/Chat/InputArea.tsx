@@ -1,15 +1,17 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
-import { Send, Square, Paperclip } from 'lucide-react';
+import { Send, Square, Paperclip, X } from 'lucide-react';
 import { useAppStore, generateId } from '../../lib/store';
 import { streamChat } from '../../lib/sse';
-import { fetchSavings } from '../../lib/api';
+import { fetchSavings, uploadFile } from '../../lib/api';
 import { MicButton } from './MicButton';
 import { useSpeech } from '../../hooks/useSpeech';
 import type { ChatMessage, ToolCallInfo, TokenUsage, MessageTelemetry } from '../../types';
 
 export function InputArea() {
   const [input, setInput] = useState('');
+  const [attachedFile, setAttachedFile] = useState<File | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const abortRef = useRef<AbortController | null>(null);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -17,7 +19,6 @@ export function InputArea() {
   const selectedModel = useAppStore((s) => s.selectedModel);
   const streamState = useAppStore((s) => s.streamState);
   const messages = useAppStore((s) => s.messages);
-  const speechEnabled = useAppStore((s) => s.settings.speechEnabled);
   const createConversation = useAppStore((s) => s.createConversation);
   const addMessage = useAppStore((s) => s.addMessage);
   const updateLastAssistant = useAppStore((s) => s.updateLastAssistant);
@@ -43,12 +44,21 @@ export function InputArea() {
     prevModelRef.current = selectedModel;
   }, [selectedModel, streamState.isStreaming, resetStream]);
 
-  const micDisabled = !speechEnabled || !speechAvailable || streamState.isStreaming;
+  const micDisabled = !speechAvailable || streamState.isStreaming;
   const micReason: 'not-enabled' | 'no-backend' | 'streaming' | undefined =
-    !speechEnabled ? 'not-enabled'
-    : !speechAvailable ? 'no-backend'
+    !speechAvailable ? 'no-backend'
     : streamState.isStreaming ? 'streaming'
     : undefined;
+
+  const handlePaperclipClick = useCallback(() => {
+    fileInputRef.current?.click();
+  }, []);
+
+  const handleFileChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) setAttachedFile(file);
+    e.target.value = '';
+  }, []);
 
   const handleMicClick = useCallback(async () => {
     if (speechState === 'recording') {
@@ -82,10 +92,23 @@ export function InputArea() {
   }, [resetStream]);
 
   const sendMessage = useCallback(async () => {
-    const content = input.trim();
-    if (!content || streamState.isStreaming) return;
+    const rawContent = input.trim();
+    if ((!rawContent && !attachedFile) || streamState.isStreaming) return;
 
     setInput('');
+
+    let content = rawContent;
+    if (attachedFile) {
+      setAttachedFile(null);
+      try {
+        const uploaded = await uploadFile(attachedFile);
+        const filePrefix = `[Archivo adjunto: ${uploaded.path}]`;
+        content = rawContent ? `${filePrefix}\n${rawContent}` : filePrefix;
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : 'Upload error';
+        content = rawContent || `(Error al subir archivo: ${msg})`;
+      }
+    }
 
     let convId = activeId;
     if (!convId) {
@@ -273,6 +296,7 @@ export function InputArea() {
     }
   }, [
     input,
+    attachedFile,
     activeId,
     selectedModel,
     streamState.isStreaming,
@@ -290,58 +314,104 @@ export function InputArea() {
     }
   };
 
+  const canSend = (input.trim().length > 0 || !!attachedFile) && !modelLoading;
+
   return (
     <div className="px-4 pb-4 pt-2" style={{ maxWidth: 'var(--chat-max-width)', margin: '0 auto', width: '100%' }}>
+      <input
+        ref={fileInputRef}
+        type="file"
+        className="hidden"
+        onChange={handleFileChange}
+        accept="*/*"
+      />
       <div
-        className="flex items-center gap-2 rounded-2xl px-4 py-3 transition-shadow"
+        className="flex flex-col rounded-2xl px-4 py-3 transition-shadow"
         style={{
           background: 'var(--color-input-bg)',
           border: '1px solid var(--color-input-border)',
           boxShadow: 'var(--shadow-sm)',
         }}
       >
-        <textarea
-          ref={textareaRef}
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          onKeyDown={handleKeyDown}
-          placeholder="Message OpenJarvis..."
-          rows={1}
-          className="flex-1 bg-transparent outline-none resize-none text-sm leading-relaxed"
-          style={{ color: 'var(--color-text)', maxHeight: '200px' }}
-          disabled={streamState.isStreaming || modelLoading}
-        />
-        {streamState.isStreaming ? (
-          <button
-            onClick={stopStreaming}
-            className="p-2 rounded-xl transition-colors shrink-0 cursor-pointer"
-            style={{ background: 'var(--color-error)', color: 'white' }}
-            title="Stop generating"
-          >
-            <Square size={16} />
-          </button>
-        ) : (
-          <div className="flex items-center gap-1">
-            <MicButton
-              state={speechState}
-              onClick={handleMicClick}
-              disabled={micDisabled}
-              reason={micReason}
-            />
-            <button
-              onClick={sendMessage}
-              disabled={!input.trim() || modelLoading}
-              className="p-2 rounded-xl transition-colors shrink-0 cursor-pointer disabled:opacity-30 disabled:cursor-default"
-              style={{
-                background: input.trim() ? 'var(--color-accent)' : 'var(--color-bg-tertiary)',
-                color: input.trim() ? 'white' : 'var(--color-text-tertiary)',
-              }}
-              title="Send message"
+        {attachedFile && (
+          <div className="flex items-center gap-2 pb-2">
+            <div
+              className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs"
+              style={{ background: 'var(--color-bg-tertiary)', color: 'var(--color-text-secondary)' }}
             >
-              <Send size={16} />
-            </button>
+              <Paperclip size={11} />
+              <span className="max-w-[220px] truncate">{attachedFile.name}</span>
+              <span style={{ color: 'var(--color-text-tertiary)' }}>
+                ({Math.round(attachedFile.size / 1024)} KB)
+              </span>
+              <button
+                onClick={() => setAttachedFile(null)}
+                className="ml-0.5 rounded hover:opacity-70 transition-opacity"
+                style={{ color: 'var(--color-text-secondary)' }}
+                title="Remove file"
+              >
+                <X size={11} />
+              </button>
+            </div>
           </div>
         )}
+        <div className="flex items-center gap-2">
+          <textarea
+            ref={textareaRef}
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            onKeyDown={handleKeyDown}
+            placeholder="Message OpenJarvis..."
+            rows={1}
+            className="flex-1 bg-transparent outline-none resize-none text-sm leading-relaxed"
+            style={{ color: 'var(--color-text)', maxHeight: '200px' }}
+            disabled={streamState.isStreaming || modelLoading}
+          />
+          {streamState.isStreaming ? (
+            <button
+              onClick={stopStreaming}
+              className="p-2 rounded-xl transition-colors shrink-0 cursor-pointer"
+              style={{ background: 'var(--color-error)', color: 'white' }}
+              title="Stop generating"
+            >
+              <Square size={16} />
+            </button>
+          ) : (
+            <div className="flex items-center gap-1">
+              <button
+                onClick={handlePaperclipClick}
+                disabled={streamState.isStreaming}
+                className="p-2 rounded-xl transition-colors shrink-0"
+                style={{
+                  background: attachedFile ? 'var(--color-accent)' : 'transparent',
+                  color: attachedFile ? 'white' : 'var(--color-text-secondary)',
+                  cursor: 'pointer',
+                }}
+                title="Adjuntar archivo"
+              >
+                <Paperclip size={16} />
+              </button>
+              <MicButton
+                state={speechState}
+                onClick={handleMicClick}
+                disabled={micDisabled}
+                reason={micReason}
+              />
+              <button
+                onClick={sendMessage}
+                disabled={!canSend}
+                className="p-2 rounded-xl transition-colors shrink-0 cursor-pointer disabled:opacity-30 disabled:cursor-default"
+                style={{
+                  background: canSend ? 'var(--color-accent)' : 'var(--color-bg-tertiary)',
+                  color: canSend ? 'white' : 'var(--color-text-tertiary)',
+                }}
+                title="Send message"
+              >
+                <Send size={16} />
+              </button>
+            </div>
+          )}
+        </div>
       </div>
       <div className="flex items-center justify-center mt-2 text-[11px]" style={{ color: 'var(--color-text-tertiary)' }}>
         <span>
