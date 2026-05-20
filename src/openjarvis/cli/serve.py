@@ -209,6 +209,17 @@ def serve(
                 agent_kwargs["max_tokens"] = config.intelligence.max_tokens
                 agent_kwargs["temperature"] = config.intelligence.temperature
 
+                # Runtime system prompt from config (overrides / supplements Modelfile SYSTEM)
+                _sp = config.agent.system_prompt.strip() if config.agent.system_prompt else ""
+                if not _sp and config.agent.system_prompt_path:
+                    try:
+                        import pathlib as _pl
+                        _sp = _pl.Path(config.agent.system_prompt_path).expanduser().read_text(encoding="utf-8").strip()
+                    except Exception as _sp_exc:
+                        logger.debug("system_prompt_path read failed: %s", _sp_exc)
+                if _sp:
+                    agent_kwargs["system_prompt"] = _sp
+
                 agent = agent_cls(engine, model_name, **agent_kwargs)
         except Exception as exc:
             import traceback
