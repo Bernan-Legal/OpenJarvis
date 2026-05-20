@@ -112,20 +112,26 @@ class ShellExecTool(BaseTool):
                     success=False,
                 )
 
-        # Build sanitised environment
-        env: dict[str, str] = {}
-        for key in _BASE_ENV_KEYS:
-            val = os.environ.get(key)
-            if val is not None:
-                env[key] = val
+        import sys as _sys
+
+        # On Windows use the full host environment — Python subprocess needs
+        # SystemRoot and other Windows vars to initialise; the sanitised env
+        # causes "_Py_HashRandomization_Init" failures.
+        if _sys.platform.startswith("win"):
+            env = None  # type: ignore[assignment]
+        else:
+            env = {}
+            for key in _BASE_ENV_KEYS:
+                val = os.environ.get(key)
+                if val is not None:
+                    env[key] = val
 
         env_passthrough: List[str] = params.get("env_passthrough") or []
-        for key in env_passthrough:
-            val = os.environ.get(key)
-            if val is not None:
-                env[key] = val
-
-        import sys as _sys
+        if env is not None:
+            for key in env_passthrough:
+                val = os.environ.get(key)
+                if val is not None:
+                    env[key] = val
         if not _sys.platform.startswith("win"):
             try:
                 from openjarvis._rust_bridge import get_rust_module
