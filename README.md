@@ -156,5 +156,7 @@ ollama create teo -f Modelfile_TEO.txt
 
 - **Ollama host:** Always `http://127.0.0.1:11434` — Docker Desktop intercepts `localhost` on IPv6.
 - **Memory:** `~/.openjarvis/memory.db` (SQLite). Never run `jarvis memory` on the project root — it indexes `rust/target/` (GBs of compiled binaries).
-- **Modelfiles:** `Modelfile` (base layers) → `Modelfile_TEO.txt` (system prompt + TEO identity).
+- **Modelfiles:** `Modelfile` (base layers) → `Modelfile_TEO.txt` (system prompt + TEO identity). After editing `Modelfile_TEO.txt`, rebuild: `ollama create teo -f Modelfile_TEO.txt`.
+- **Runtime system prompt:** `~/.openjarvis/config.toml` → `[agent] system_prompt` is injected by the orchestrator on every request (overrides the Modelfile SYSTEM). This is the canonical place for date reference and tool-use instructions until the model is rebuilt.
+- **Cloud detection:** If `ANTHROPIC_API_KEY` (or other cloud keys) are in the environment, the server wraps both local + cloud engines into `MultiEngine`. Requests for `teo` always route to Ollama regardless.
 - See [CLAUDE.md](CLAUDE.md) for full architecture, fixes log, and operational notes.

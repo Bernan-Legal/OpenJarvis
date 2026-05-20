@@ -185,6 +185,7 @@ Flujo: TEO → respuesta texto → llamada HTTP a DBS_Audios → audio con voz d
 
 ### Pendiente / En progreso
 
+- **Rebuild del modelo TEO:** `ollama create teo -f Modelfile_TEO.txt` — pendiente de ejecutar para baking del system prompt mejorado directamente en `teo:latest`. Mientras tanto, el system prompt corre vía `config.toml` inyectado en runtime.
 - **Extensión Rust de análisis de proyectos:** `teo_tool_diagnostic.py` verifica que funcione
 - **Canal Telegram:** código presente en `channels/telegram.py`, pendiente de activar con `uv sync --extra channel-telegram`
 - **Integración con RAG jurídico:** planificada via tool `retrieval` + índice ColBERT
@@ -195,15 +196,17 @@ Flujo: TEO → respuesta texto → llamada HTTP a DBS_Audios → audio con voz d
 
 | Fecha | Cambio | Descripción |
 |-------|--------|-------------|
-| May 2026 | Expansión de herramientas | 6 → 24 herramientas activas; browser, pdf_extract, file_write, git, memory, agent_spawn |
-| May 2026 | Skills instalados | 20 skills built-in en `~/.openjarvis/skills/`; `src/openjarvis/tools/__init__.py` extendido |
-| May 2026 | `memory-pdf` + `browser` extras | `pdfplumber 0.11.9` y `playwright 1.58.0` / Chromium instalados |
-| May 2026 | README fix | Puerto corregido `0.0.0.0:8000` → `127.0.0.1:8222`; URL frontend → `127.0.0.1:5173` |
-| May 2026 | Fix puerto 8222 | Puerto oficial de TEO — 8000 siempre ocupado por DeepBernan |
+| 19 May 2026 | Fix `system_prompt` en function_calling | `orchestrator.py`: `_run_function_calling` no pasaba `self._system_prompt` a `_build_messages`; solo lo usaba el modo `structured`. Fix: pasa `system_prompt=self._system_prompt or None` |
+| 19 May 2026 | `serve.py` wiring de system_prompt | Ahora lee `config.agent.system_prompt` y `system_prompt_path` y los pasa al OrchestratorAgent en startup |
+| 19 May 2026 | `config.toml` system_prompt completo | Añadido system_prompt con fecha 2026, instrucción de extraer año de web_search, y `NUNCA digas que no tienes internet` |
+| 19 May 2026 | Modelfile_TEO.txt fortalecido | Añadida regla `TIENES ACCESO COMPLETO A INTERNET`; instrucción explícita de año 2026; `ollama create` pendiente |
+| 11 May 2026 | Expansión de herramientas | 6 → 24 herramientas activas; browser, pdf_extract, file_write, git, memory, agent_spawn |
+| 11 May 2026 | Skills instalados | 20 skills built-in en `~/.openjarvis/skills/`; `src/openjarvis/tools/__init__.py` extendido |
+| 11 May 2026 | `memory-pdf` + `browser` extras | `pdfplumber 0.11.9` y `playwright 1.58.0` / Chromium instalados |
+| 11 May 2026 | README fix | Puerto corregido `0.0.0.0:8000` → `127.0.0.1:8222`; URL frontend → `127.0.0.1:5173` |
+| 11 May 2026 | App.tsx model selection fix | Retry con backoff exponencial; selección `teo:latest` como modelo por defecto |
+| 11 May 2026 | `.gitignore` security fix | `.secrets.ps1` y `.secrets.bat` ahora gitignored |
 | Abr 2026 | `127.0.0.1` en Ollama | Docker interceptaba `::1:11434` con `localhost` |
-| Abr 2026 | `max_tokens` desde config | Ya no hardcodeado — respeta el valor del config.toml |
-| Abr 2026 | `keep_alive = "2h"` | Evita que Ollama descargue el modelo entre turnos |
-| Abr 2026 | `TraceStore.recent()` fix | Corregido bug en recuperación de trazas recientes |
 | Mar 2026 | Modelfile `FROM qwen2.5:14b` | `qwen2.5:14b-instruct` ya no existe en Ollama Hub |
 
 ---
@@ -246,8 +249,9 @@ TEO no responde
 │   ├── Ollama no corre → iniciar Ollama, verificar en 11434
 │   └── Modelo teo:latest no existe → ollama create teo -f Modelfile_TEO.txt
 │
-├── Chat responde pero sin web_search
-│   └── TAVILY_API_KEY no cargada → iniciar con .secrets.ps1 / Iniciar_TEO.bat
+├── Chat responde pero sin web_search / dice "no tengo internet"
+│   ├── TAVILY_API_KEY no cargada → iniciar con .secrets.ps1 / Iniciar_TEO.bat
+│   └── system_prompt no inyectado → verificar que config.toml tiene system_prompt y reiniciar TEO
 │
 └── Frontend no carga en :5173
     └── npm run dev no está corriendo → revisar la ventana del script PS1
