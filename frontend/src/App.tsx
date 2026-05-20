@@ -44,20 +44,43 @@ export default function App() {
     else if (settings.theme === 'light') root.classList.add('light');
   }, [settings.theme]);
 
-  // Fetch models on mount
+  // Fetch models on mount — retry until server is ready (server takes ~10s to boot)
   useEffect(() => {
-    fetchModels()
-      .then((m) => {
-        setModels(m);
-        if (!selectedModel && m.length > 0) setSelectedModel(m[0].id);
-      })
-      .catch(() => setModels([]))
-      .finally(() => setModelsLoading(false));
+    let cancelled = false;
+    const attempt = (delay: number) => {
+      fetchModels()
+        .then((m) => {
+          if (cancelled) return;
+          setModels(m);
+          if (!selectedModel && m.length > 0) {
+            const preferred = settings.defaultModel;
+            const match =
+              (preferred && m.find((x) => x.id === preferred || x.id === `${preferred}:latest`)) ||
+              m.find((x) => x.id === 'teo' || x.id === 'teo:latest') ||
+              m[0];
+            setSelectedModel(match.id);
+          }
+          setModelsLoading(false);
+        })
+        .catch(() => {
+          if (cancelled) return;
+          setTimeout(() => attempt(Math.min(delay * 1.5, 10000)), delay);
+        });
+    };
+    attempt(1500);
+    return () => { cancelled = true; };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Fetch server info
+  // Fetch server info — also retry on failure
   useEffect(() => {
-    fetchServerInfo().then(setServerInfo).catch(() => {});
+    let cancelled = false;
+    const attempt = (delay: number) => {
+      fetchServerInfo()
+        .then((info) => { if (!cancelled) setServerInfo(info); })
+        .catch(() => { if (!cancelled) setTimeout(() => attempt(Math.min(delay * 1.5, 10000)), delay); });
+    };
+    attempt(1500);
+    return () => { cancelled = true; };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Poll savings and optionally share to Supabase
