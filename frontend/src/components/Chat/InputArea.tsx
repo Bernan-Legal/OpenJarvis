@@ -26,7 +26,7 @@ export function InputArea() {
   const resetStream = useAppStore((s) => s.resetStream);
   const modelLoading = useAppStore((s) => s.modelLoading);
 
-  const { state: speechState, available: speechAvailable, startRecording, stopRecording } = useSpeech();
+  const { state: speechState, available: speechAvailable, error: speechError, startRecording, stopRecording } = useSpeech();
 
   // Abort in-flight stream when the user switches models mid-generation.
   // This prevents errors from trying to continue a stream with a stale model.
@@ -413,6 +413,14 @@ export function InputArea() {
           )}
         </div>
       </div>
+      {speechError && (
+        <div className="mt-1.5 text-center text-[11px]" style={{ color: 'var(--color-error)' }}>
+          Micrófono: {speechError === 'not-allowed' ? 'permiso denegado — habilítalo en la barra del navegador'
+            : speechError === 'audio-capture' ? 'no se detectó micrófono'
+            : speechError === 'network' ? 'error de red (reconocimiento requiere internet)'
+            : speechError}
+        </div>
+      )}
       <div className="flex items-center justify-center mt-2 text-[11px]" style={{ color: 'var(--color-text-tertiary)' }}>
         <span>
           <kbd className="font-mono">Enter</kbd> to send &middot;{' '}

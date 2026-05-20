@@ -40,7 +40,7 @@ export function useSpeech() {
     const recognition = new Ctor();
     recognition.continuous = true;
     recognition.interimResults = false;
-    recognition.lang = 'es-CR';
+    recognition.lang = 'es';
 
     recognition.onresult = (event) => {
       transcriptRef.current = Array.from(event.results as ArrayLike<{ 0: { transcript: string } }>)

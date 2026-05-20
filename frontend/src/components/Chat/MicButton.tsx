@@ -63,7 +63,7 @@ export function MicButton({ state, onClick, disabled, reason }: MicButtonProps) 
           </svg>
         )}
       </button>
-      {showTooltip && isInactive && (
+      {showTooltip && (
         <div
           className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2.5 py-1.5 rounded-lg text-xs whitespace-nowrap pointer-events-none"
           style={{
