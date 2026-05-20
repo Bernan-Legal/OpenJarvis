@@ -125,17 +125,19 @@ class ShellExecTool(BaseTool):
             if val is not None:
                 env[key] = val
 
-        from openjarvis._rust_bridge import get_rust_module
-        _rust = get_rust_module()
-        if True:
+        import sys as _sys
+        if not _sys.platform.startswith("win"):
             try:
+                from openjarvis._rust_bridge import get_rust_module
+                _rust = get_rust_module()
                 output = _rust.ShellExecTool().execute(command, working_dir)
+                exit_ok = not (output and output.startswith("Exit code: ") and not output.startswith("Exit code: 0"))
                 return ToolResult(
                     tool_name="shell_exec",
                     content=output or "(no output)",
-                    success=True,
+                    success=exit_ok,
                     metadata={
-                        "returncode": 0,
+                        "returncode": 0 if exit_ok else 1,
                         "timeout_used": timeout,
                         "working_dir": working_dir,
                     },

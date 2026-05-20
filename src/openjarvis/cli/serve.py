@@ -225,10 +225,12 @@ def serve(
                     _weekdays_es = ["lunes","martes","miércoles","jueves","viernes","sábado","domingo"]
                     _now = _dt.now()
                     _fecha = f"{_weekdays_es[_now.weekday()]} {_now.day} de {_months_es[_now.month - 1]} de {_now.year}"
+                    _hora = _now.strftime("%H:%M")
                     if "{FECHA_ACTUAL}" in _sp:
                         _sp = _sp.replace("{FECHA_ACTUAL}", _fecha)
                     else:
                         _sp = f"Fecha actual del sistema: {_fecha}\n\n{_sp}"
+                    _sp = _sp.replace("{HORA_ACTUAL}", _hora)
                     agent_kwargs["system_prompt"] = _sp
 
                 agent = agent_cls(engine, model_name, **agent_kwargs)
