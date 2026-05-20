@@ -5,7 +5,7 @@ use tauri::tray::TrayIconBuilder;
 use tauri_plugin_autostart::MacosLauncher;
 
 const OLLAMA_PORT: u16 = 11434;
-const JARVIS_PORT: u16 = 8000;
+const JARVIS_PORT: u16 = 8222;
 
 // ---------------------------------------------------------------------------
 // Setup status — reported to the SetupScreen on first launch

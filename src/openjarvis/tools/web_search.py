@@ -134,43 +134,61 @@ class WebSearchTool(BaseTool):
                     success=False,
                 )
 
-        if not self._api_key:
-            return ToolResult(
-                tool_name="web_search",
-                content="No API key configured. Set TAVILY_API_KEY.",
-                success=False,
-            )
         max_results = params.get("max_results", self._max_results)
-        try:
-            from tavily import TavilyClient
 
-            client = TavilyClient(api_key=self._api_key)
-            response = client.search(query, max_results=max_results)
-            results = response.get("results", [])
+        if self._api_key:
+            try:
+                from tavily import TavilyClient
+
+                client = TavilyClient(api_key=self._api_key)
+                response = client.search(query, max_results=max_results)
+                results = response.get("results", [])
+                formatted = "\n\n".join(
+                    f"**{r.get('title', 'Untitled')}**\n"
+                    f"{r.get('url', '')}\n{r.get('content', '')}"
+                    for r in results
+                )
+                return ToolResult(
+                    tool_name="web_search",
+                    content=formatted or "No results found.",
+                    success=True,
+                    metadata={"num_results": len(results), "backend": "tavily"},
+                )
+            except ImportError:
+                pass  # fall through to DuckDuckGo
+            except Exception as exc:
+                return ToolResult(
+                    tool_name="web_search",
+                    content=f"Search error: {exc}",
+                    success=False,
+                )
+
+        try:
+            from ddgs import DDGS
+
+            ddgs = DDGS()
+            results = ddgs.text(query, max_results=max_results)
             formatted = "\n\n".join(
                 f"**{r.get('title', 'Untitled')}**\n"
-                f"{r.get('url', '')}\n{r.get('content', '')}"
-                for r in results
+                f"{r.get('href', '')}\n{r.get('body', '')}"
+                for r in (results or [])
             )
             return ToolResult(
                 tool_name="web_search",
                 content=formatted or "No results found.",
                 success=True,
-                metadata={"num_results": len(results)},
+                metadata={"num_results": len(results or []), "backend": "duckduckgo"},
             )
         except ImportError:
             return ToolResult(
                 tool_name="web_search",
-                content=(
-                    "tavily-python not installed."
-                    " Install with: pip install tavily-python"
-                ),
+                content="No search backend available. Set TAVILY_API_KEY or install ddgs.",
                 success=False,
             )
         except Exception as exc:
             return ToolResult(
                 tool_name="web_search",
-                content=f"Search error: {exc}",
+                content=f"DuckDuckGo search error: {exc}",
                 success=False,
             )
 

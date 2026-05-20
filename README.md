@@ -133,9 +133,10 @@ This repository also contains **TEO**, a customized operational agent built on O
 |-----------|-------|
 | Base model | `qwen2.5:14b` via Ollama (`teo:latest`) |
 | Agent | `orchestrator` (function-calling mode) |
-| Tools | `web_search` (Tavily), `code_interpreter`, `file_read`, `shell_exec`, `think`, `calculator` |
-| API server | FastAPI on `http://0.0.0.0:8000` |
-| Frontend | React + Vite on `http://localhost:5173` |
+| Tools (24) | `think`, `calculator`, `web_search`, `code_interpreter`, `file_read`, `shell_exec`, `file_write`, `http_request`, `pdf_extract`, `browser_navigate`, `browser_extract`, `git_status`, `git_diff`, `git_log`, `memory_store`, `memory_retrieve`, `memory_search`, `retrieval`, `agent_spawn`, `repl`, `llm`, + 3 más |
+| Skills (20) | `pdf-summarize`, `topic-research`, `data-analyze`, `translate-doc`, `daily-digest`, y 15 más en `~/.openjarvis/skills/` |
+| API server | FastAPI on `http://127.0.0.1:8222` |
+| Frontend | React + Vite on `http://127.0.0.1:5173` |
 | Config | `~/.openjarvis/config.toml` |
 
 ### Quick Start (TEO)
@@ -148,7 +149,6 @@ Iniciar_TEO.bat          # Windows shortcut on Desktop (contains TAVILY_API_KEY 
 .\start_openjarvis.ps1
 
 # Rebuild TEO model after Modelfile changes
-ollama create teo -f Modelfile
 ollama create teo -f Modelfile_TEO.txt
 ```
 

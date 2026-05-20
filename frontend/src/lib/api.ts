@@ -33,12 +33,14 @@ export async function initApiBase(): Promise<void> {
 
 const DESKTOP_API_FALLBACK = 'http://127.0.0.1:8222';
 
+const normalizeApiBase = (value: string): string => value.trim().replace(/\/+$/, '');
+
 const getSettingsApiUrl = (): string => {
   try {
     const raw = localStorage.getItem('openjarvis-settings');
     if (raw) {
       const parsed = JSON.parse(raw);
-      if (parsed.apiUrl) return parsed.apiUrl.replace(/\/+$/, '');
+      if (parsed.apiUrl) return normalizeApiBase(String(parsed.apiUrl));
     }
   } catch {}
   return '';
@@ -47,8 +49,8 @@ const getSettingsApiUrl = (): string => {
 export const getBase = (): string => {
   const settingsUrl = getSettingsApiUrl();
   if (settingsUrl) return settingsUrl;
-  if (import.meta.env.VITE_API_URL) return import.meta.env.VITE_API_URL;
-  if (isTauri()) return _tauriApiBase || DESKTOP_API_FALLBACK;
+  if (import.meta.env.VITE_API_URL) return normalizeApiBase(import.meta.env.VITE_API_URL);
+  if (isTauri()) return normalizeApiBase(_tauriApiBase || DESKTOP_API_FALLBACK);
   return '';
 };
 

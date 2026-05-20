@@ -77,4 +77,34 @@ try:
 except ImportError:
     pass
 
+try:
+    import openjarvis.tools.file_write  # noqa: F401
+except ImportError:
+    pass
+
+try:
+    import openjarvis.tools.pdf_tool  # noqa: F401
+except ImportError:
+    pass
+
+try:
+    import openjarvis.tools.git_tool  # noqa: F401
+except ImportError:
+    pass
+
+try:
+    import openjarvis.tools.agent_tools  # noqa: F401
+except ImportError:
+    pass
+
+try:
+    import openjarvis.tools.browser  # noqa: F401
+except ImportError:
+    pass
+
+try:
+    import openjarvis.tools.browser_axtree  # noqa: F401
+except ImportError:
+    pass
+
 __all__ = ["BaseTool", "ToolExecutor", "ToolSpec"]

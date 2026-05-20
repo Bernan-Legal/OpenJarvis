@@ -39,6 +39,7 @@ inference-google = [
 inference-litellm = ["litellm>=1.40"]
 tools-search = [
     "tavily-python>=0.3",
+    "ddgs>=1.0",
 ]
 memory-faiss = [
     "faiss-cpu>=1.7",

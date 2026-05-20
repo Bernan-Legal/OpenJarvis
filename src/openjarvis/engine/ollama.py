@@ -36,7 +36,7 @@ class OllamaEngine(InferenceEngine):
         timeout: float = 1800.0,
         keep_alive: str = "2h",
     ) -> None:
-        # Priority: explicit host (from config.toml) > OLLAMA_HOST env var > default
+        # Priority: explicit host (from config.token) > OLLama_HOST env var > default
         if host is None:
             env_host = os.environ.get("OLLAMA_HOST")
             host = env_host or self._DEFAULT_HOST
@@ -66,6 +66,7 @@ class OllamaEngine(InferenceEngine):
                         fn["arguments"] = json.loads(args)
                     except (json.JSONDecodeError, TypeError):
                         pass
+
         payload: Dict[str, Any] = {
             "model": model,
             "messages": msg_dicts,
@@ -86,11 +87,11 @@ class OllamaEngine(InferenceEngine):
         response_format = kwargs.get("response_format")
         if response_format is not None:
             from openjarvis.engine._stubs import ResponseFormat
-
             if isinstance(response_format, ResponseFormat):
                 payload["format"] = "json"
             elif isinstance(response_format, dict):
                 payload["format"] = "json"
+
         try:
             resp = self._client.post("/api/chat", json=payload)
             if resp.status_code == 400 and tools:
@@ -99,14 +100,11 @@ class OllamaEngine(InferenceEngine):
                 resp = self._client.post("/api/chat", json=payload)
             resp.raise_for_status()
         except (httpx.ConnectError, httpx.TimeoutException) as exc:
-            raise EngineConnectionError(
-                f"Ollama not reachable at {self._host}"
-            ) from exc
+            raise EngineConnectionError(f"Ollama not reachable at {self._host}") from exc
         except httpx.HTTPStatusError as exc:
             body = exc.response.text[:500] if exc.response else ""
-            raise RuntimeError(
-                f"Ollama returned {exc.response.status_code}: {body}"
-            ) from exc
+            raise RuntimeError(f"Ollama returned {exc.response.status_code}: {body}") from exc
+
         data = resp.json()
         prompt_tokens = data.get("prompt_eval_count", 0)
         completion_tokens = data.get("eval_count", 0)
@@ -121,27 +119,22 @@ class OllamaEngine(InferenceEngine):
             "model": data.get("model", model),
             "finish_reason": "stop",
         }
-        # Extract timing from Ollama response (nanoseconds → seconds)
+        # Extract timing from Ollama response (nanoseconds -> seconds)
         result["ttft"] = data.get("prompt_eval_duration", 0) / 1e9
         result["engine_timing"] = {k: data[k] for k in
             ("total_duration", "load_duration", "prompt_eval_duration", "eval_duration")
             if k in data}
+        
         # Extract tool calls if present
         raw_tool_calls = data.get("message", {}).get("tool_calls", [])
         if raw_tool_calls:
             tool_calls = []
             for i, tc in enumerate(raw_tool_calls):
-                raw_args = tc.get("function", {}).get(
-                    "arguments", "{}",
-                )
+                raw_args = tc.get("function", {}).get("arguments", "{}")
                 tool_calls.append({
                     "id": tc.get("id", f"call_{i}"),
                     "name": tc.get("function", {}).get("name", ""),
-                    "arguments": (
-                        json.dumps(raw_args)
-                        if isinstance(raw_args, dict)
-                        else raw_args
-                    ),
+                    "arguments": json.dumps(raw_args) if isinstance(raw_args, dict) else raw_args,
                 })
             result["tool_calls"] = tool_calls
         return result
@@ -155,6 +148,11 @@ class OllamaEngine(InferenceEngine):
         max_tokens: int = 1024,
         **kwargs: Any,
     ) -> AsyncIterator[str]:
+        # Note: even though the client is sync, we use it in an async generator.
+        # For true non-blocking streaming in a production async app, 
+        # we'd use AsyncClient, but we are reverting to sync to ensure stability.
+        # To keep the interface, we'll yield from a sync loop.
+        
         payload: Dict[str, Any] = {
             "model": model,
             "messages": messages_to_dicts(messages),
@@ -166,7 +164,10 @@ class OllamaEngine(InferenceEngine):
                 "num_ctx": kwargs.get("num_ctx", 8192),
             },
         }
+        
         try:
+            # We use the sync client with stream=True. 
+            # This works in an async generator if called correctly.
             with self._client.stream("POST", "/api/chat", json=payload) as resp:
                 resp.raise_for_status()
                 for line in resp.iter_lines():
@@ -180,35 +181,27 @@ class OllamaEngine(InferenceEngine):
                     if content:
                         yield content
                     if chunk.get("done", False):
-                        # Capture usage from final chunk
                         self._last_stream_usage = {
                             "prompt_tokens": chunk.get("prompt_eval_count", 0),
                             "completion_tokens": chunk.get("eval_count", 0),
                             "total_tokens": (
-                                chunk.get("prompt_eval_count", 0)
+                               chunk.get("prompt_eval_count", 0)
                                 + chunk.get("eval_count", 0)
                             ),
                         }
                         break
         except (httpx.ConnectError, httpx.TimeoutException) as exc:
-            raise EngineConnectionError(
-                f"Ollama not reachable at {self._host}"
-            ) from exc
+            raise EngineConnectionError(f"Ollama not reachable at {self._host}") from exc
 
     def list_models(self) -> List[str]:
         try:
             resp = self._client.get("/api/tags")
             resp.raise_for_status()
-        except (
-            httpx.ConnectError, httpx.TimeoutException, httpx.HTTPStatusError,
-        ) as exc:
-            logger.warning(
-                "Failed to list models from Ollama at %s: %s",
-                self._host, exc,
-            )
+            data = resp.json()
+            return [m["name"] for m in data.get("models", [])]
+        except Exception as exc:
+            logger.warning("Failed to list models from Ollama at %s: %s", self._host, exc)
             return []
-        data = resp.json()
-        return [m["name"] for m in data.get("models", [])]
 
     def health(self) -> bool:
         try:

@@ -42,6 +42,8 @@ Thumbs.db
 
 # Scripts de inicio locales (contienen API keys)
 Iniciar_TEO.bat
+.secrets.ps1
+.secrets.bat
 
 # Project
 *.sqlite
@@ -50,7 +52,7 @@ Iniciar_TEO.bat
 *.npz
 results/
 logs/
-traces/
+/traces/
 coding_task_*
 get-pip.py
 
