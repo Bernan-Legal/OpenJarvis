@@ -11,6 +11,7 @@ if TYPE_CHECKING:
 
 # Priority order: local first, then cloud
 DISCOVERY_ORDER = [
+    "subprocess-whisper",
     "faster-whisper",
     "openai",
     "deepgram",
@@ -30,7 +31,16 @@ def _create_backend(
     try:
         backend_cls = SpeechRegistry.get(key)
 
-        if key == "faster-whisper":
+        if key == "subprocess-whisper":
+            python_exe = getattr(config.speech, "python_exe", "") or ""
+            if not python_exe:
+                return None  # requires explicit python_exe in config
+            return backend_cls(
+                python_exe=python_exe,
+                model_size=config.speech.model,
+                language=config.speech.language,
+            )
+        elif key == "faster-whisper":
             return backend_cls(
                 model_size=config.speech.model,
                 device=config.speech.device,

@@ -124,7 +124,7 @@ Flujo: TEO → respuesta texto → llamada HTTP a DBS_Audios → audio con voz d
    │
    └── React frontend conecta a /v1/* proxy → 127.0.0.1:8222
 
-3. Bernan envía mensaje a TEO
+3. Bernan envía mensaje a TEO (texto, voz, o documento adjunto)
    │
    ├── POST /v1/chat/completions
    ├── orchestrator agent maneja el turno (máx 5)
@@ -165,10 +165,11 @@ Flujo: TEO → respuesta texto → llamada HTTP a DBS_Audios → audio con voz d
 | `frontend/src/lib/api.ts` | Todas las llamadas HTTP del frontend |
 | `frontend/vite.config.ts` | Proxy dev server (apunta a 8222) |
 | `scripts/teo_tool_diagnostic.py` | Diagnóstico rápido de herramientas locales |
+| `src/openjarvis/speech/subprocess_whisper.py` | Backend STT local vía Miniconda3 |
 
 ---
 
-## Estado del proyecto (mayo 2026)
+## Estado del proyecto — 20 Mayo 2026 (sesión en curso)
 
 ### Funcionando correctamente
 
@@ -182,32 +183,79 @@ Flujo: TEO → respuesta texto → llamada HTTP a DBS_Audios → audio con voz d
 - Ollama con `teo:latest` disponible y respondiendo
 - Memoria SQLite activa con recuperación selectiva
 - Trazas registrándose en `~/.openjarvis/traces.db`
+- **Subida de documentos** via botón Paperclip → POST `/v1/files/upload` → `~/.openjarvis/uploads/`
+- **TEO invoca `file_read`/`pdf_extract`** cuando mensaje contiene `[Archivo adjunto: ruta]`
+- `web_search` invocado correctamente para personas reales y datos actuales
+- `shell_exec` funciona en Windows con `subprocess` + `env=None` (bypass Rust bridge)
+- Fecha/hora correcta en system_prompt via `{FECHA_ACTUAL}` / `{HORA_ACTUAL}` en `serve.py`
 
-### Pendiente / En progreso
+### En progreso — sesión actual (20 May 2026)
 
-- **Rebuild del modelo TEO:** `ollama create teo -f Modelfile_TEO.txt` — pendiente de ejecutar para baking del system prompt mejorado directamente en `teo:latest`. Mientras tanto, el system prompt corre vía `config.toml` inyectado en runtime.
-- **Extensión Rust de análisis de proyectos:** `teo_tool_diagnostic.py` verifica que funcione
-- **Canal Telegram:** código presente en `channels/telegram.py`, pendiente de activar con `uv sync --extra channel-telegram`
-- **Integración con RAG jurídico:** planificada via tool `retrieval` + índice ColBERT
-- **Fine-tuning SFT:** traces acumulándose, `auto_update = false` por ahora
-- **App Tauri standalone (`desktop/`):** funcional pero no es el modo principal de uso
+#### Speech-to-text (micrófono) — PENDIENTE COMPLETAR
 
-### Cambios recientes significativos
+**Situación:**
+- Web Speech API de Chrome falla con "error de red" (envía audio a Google — no local-first)
+- `faster-whisper>=1.0` en uv venv falla porque `onnxruntime 1.24.2` no tiene wheels para Python 3.10
+- `faster-whisper 1.0.3` SÍ funciona en **Miniconda3** (`C:\Users\USUARIO\miniconda3\`)
+- PyTorch `2.10.0.dev20251001+cu130` disponible en Miniconda3 (CUDA 13.0)
+- **Solución implementada:** backend `subprocess-whisper` que llama al Python de Miniconda3
+
+**Archivos modificados:**
+- `src/openjarvis/speech/subprocess_whisper.py` — CREADO: backend que usa subprocess con miniconda3
+- `src/openjarvis/core/config.py` — añadido campo `python_exe` a `SpeechConfig`
+- `src/openjarvis/speech/_discovery.py` — `subprocess-whisper` en discovery order
+- `~/.openjarvis/config.toml` — añadir sección `[speech]` con `backend = "subprocess-whisper"`
+- `frontend/src/hooks/useSpeech.ts` — PENDIENTE: revertir a MediaRecorder + `/v1/speech/transcribe`
+
+**Para activar el micrófono (próxima sesión si se interrumpe):**
+1. Verificar que `src/openjarvis/speech/subprocess_whisper.py` existe
+2. Añadir a `~/.openjarvis/config.toml`:
+   ```toml
+   [speech]
+   backend = "subprocess-whisper"
+   model = "base"
+   language = "es"
+   python_exe = "C:/Users/USUARIO/miniconda3/python.exe"
+   ```
+3. Revertir `frontend/src/hooks/useSpeech.ts` a MediaRecorder + `fetchSpeechHealth` + `transcribeAudio`
+4. Reiniciar TEO
+5. Al primer uso, descargará modelo Whisper `base` a `~/.cache/huggingface/`
+
+### Cambios recientes significativos — sesión 20 May 2026
+
+| Commit | Cambio | Descripción |
+|--------|--------|-------------|
+| `216651d` | fix speech lang + error display | `es-CR`→`es`, errores visibles en UI, tooltip siempre activo |
+| `705a905` | fix file_read rules en prompts | DEBES/PROHIBIDO para `file_read`/`pdf_extract` en system_prompt y Modelfile |
+| `802f20a` | feat microphone + document upload | Web Speech API + Paperclip + `/v1/files/upload` backend |
+| `e3d2e25` | fix system_prompt en function_calling | `_run_function_calling` no pasaba system_prompt a `_build_messages` |
+| `8f170e0` | fix wiring system_prompt en serve.py | Leer `config.agent.system_prompt` y pasarlo al OrchestratorAgent |
+| `ce3a212` | fix tavily+ddgs reaparecen | Comando canónico con 4 extras juntos |
+| `c2174b6` | fix shell_exec Windows | Bypass Rust bridge + `env=None` + parsear exit code |
+
+### Cambios anteriores significativos
 
 | Fecha | Cambio | Descripción |
 |-------|--------|-------------|
-| 19 May 2026 | Fix `system_prompt` en function_calling | `orchestrator.py`: `_run_function_calling` no pasaba `self._system_prompt` a `_build_messages`; solo lo usaba el modo `structured`. Fix: pasa `system_prompt=self._system_prompt or None` |
-| 19 May 2026 | `serve.py` wiring de system_prompt | Ahora lee `config.agent.system_prompt` y `system_prompt_path` y los pasa al OrchestratorAgent en startup |
-| 19 May 2026 | `config.toml` system_prompt completo | Añadido system_prompt con fecha 2026, instrucción de extraer año de web_search, y `NUNCA digas que no tienes internet` |
-| 19 May 2026 | Modelfile_TEO.txt fortalecido | Añadida regla `TIENES ACCESO COMPLETO A INTERNET`; instrucción explícita de año 2026; `ollama create` pendiente |
-| 11 May 2026 | Expansión de herramientas | 6 → 24 herramientas activas; browser, pdf_extract, file_write, git, memory, agent_spawn |
-| 11 May 2026 | Skills instalados | 20 skills built-in en `~/.openjarvis/skills/`; `src/openjarvis/tools/__init__.py` extendido |
-| 11 May 2026 | `memory-pdf` + `browser` extras | `pdfplumber 0.11.9` y `playwright 1.58.0` / Chromium instalados |
-| 11 May 2026 | README fix | Puerto corregido `0.0.0.0:8000` → `127.0.0.1:8222`; URL frontend → `127.0.0.1:5173` |
-| 11 May 2026 | App.tsx model selection fix | Retry con backoff exponencial; selección `teo:latest` como modelo por defecto |
-| 11 May 2026 | `.gitignore` security fix | `.secrets.ps1` y `.secrets.bat` ahora gitignored |
+| 19 May 2026 | `config.toml` system_prompt completo | Placeholders `{FECHA_ACTUAL}` / `{HORA_ACTUAL}` dinámicos |
+| 11 May 2026 | Expansión de herramientas | 6 → 24 herramientas activas |
+| 11 May 2026 | Skills instalados | 20 skills built-in en `~/.openjarvis/skills/` |
+| 11 May 2026 | `memory-pdf` + `browser` extras | pdfplumber + Playwright/Chromium |
 | Abr 2026 | `127.0.0.1` en Ollama | Docker interceptaba `::1:11434` con `localhost` |
-| Mar 2026 | Modelfile `FROM qwen2.5:14b` | `qwen2.5:14b-instruct` ya no existe en Ollama Hub |
+
+---
+
+## Restricciones de entorno críticas
+
+| Restricción | Detalle |
+|-------------|---------|
+| Python 3.10 en uv venv | `onnxruntime>=1.24` solo cp311+; `faster-whisper>=1.1` bloqueado en uv |
+| Miniconda3 = Python 3.10 también | Pero con paquetes conda que sí tienen wheels para 3.10 |
+| PyTorch en Miniconda3 | `2.10.0.dev20251001+cu130` — instalado, NO en uv venv |
+| Docker Desktop activo | Intercepta `localhost:11434` como `::1` — SIEMPRE usar `127.0.0.1` |
+| Puerto 8000 permanente | DeepBernan Anonymizer — TEO usa 8222 |
+| Rust bridge en Windows | Falla con Python `-c "..."` → bypass via subprocess |
+| `uv sync --extra X` reemplazante | Siempre usar los 4 extras juntos: `server tools-search memory-pdf browser` |
 
 ---
 
@@ -226,14 +274,17 @@ curl -X POST http://127.0.0.1:8222/v1/chat/completions \
   -H "Content-Type: application/json" \
   -d '{"model":"teo","messages":[{"role":"user","content":"test"}],"stream":false}'
 
-# 4. ¿Qué ocupa el puerto 8000?
-netstat -ano | findstr :8000
+# 4. ¿El upload de archivos funciona? (TEO debe estar reiniciado con nuevo código)
+curl -X POST http://127.0.0.1:8222/v1/files/upload -F "file=@cualquier.txt"
 
-# 5. ¿Las herramientas locales funcionan? (Rust ext + file_read + shell_exec)
+# 5. ¿El speech backend está activo?
+curl http://127.0.0.1:8222/v1/speech/health
+
+# 6. ¿Las herramientas locales funcionan? (Rust ext + file_read + shell_exec)
 uv run python scripts/teo_tool_diagnostic.py .
 
-# 6. ¿El frontend compila?
-cd frontend && npm run build
+# 7. ¿Qué ocupa el puerto 8000?
+netstat -ano | findstr :8000
 ```
 
 ### Árbol de decisión ante fallo
@@ -252,6 +303,13 @@ TEO no responde
 ├── Chat responde pero sin web_search / dice "no tengo internet"
 │   ├── TAVILY_API_KEY no cargada → iniciar con .secrets.ps1 / Iniciar_TEO.bat
 │   └── system_prompt no inyectado → verificar que config.toml tiene system_prompt y reiniciar TEO
+│
+├── Upload de archivos da 405
+│   └── TEO corriendo con código viejo → REINICIAR TEO con nuevo código
+│
+├── Micrófono no funciona / "error de red"
+│   ├── useSpeech.ts usa Web Speech API (Google) → revertir a MediaRecorder + backend
+│   └── Speech backend no activo → añadir [speech] en config.toml y reiniciar TEO
 │
 └── Frontend no carga en :5173
     └── npm run dev no está corriendo → revisar la ventana del script PS1
