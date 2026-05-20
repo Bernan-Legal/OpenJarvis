@@ -58,6 +58,16 @@ uv sync --extra browser               # automatización web Playwright/Chromium 
 
 Combinar en un solo comando: `uv sync --extra memory-faiss --extra memory-pdf`
 
+### Comando canónico para TEO (SIEMPRE usar este al sincronizar)
+
+```bash
+uv sync --extra server --extra tools-search --extra memory-pdf --extra browser
+```
+
+**IMPORTANTE:** `uv sync --extra X` reemplaza el entorno — elimina cualquier extra no listado.
+Si solo corres `uv sync --extra browser`, pierdes `tavily`, `fastapi`, etc.
+Siempre incluir los 4 extras requeridos juntos.
+
 ---
 
 ## Puertos del sistema
@@ -261,3 +271,5 @@ uv run pytest tests/ -v
 | TAVILY_API_KEY no disponible | `.secrets.ps1` no cargado | Iniciar via `Iniciar_TEO.bat` o el script PS1 |
 | `audio_transcribe` no disponible | `faster-whisper` requiere Python 3.11+; entorno es 3.10 | Pendiente hasta migrar Python o usar Whisper API |
 | Browser tools sin respuesta | Playwright no instalado o binarios faltantes | `uv sync --extra browser && uv run playwright install chromium` |
+| `web_search` falla / "No search backend" | `uv sync --extra X` sin incluir `tools-search` eliminó tavily+ddgs | `uv sync --extra server --extra tools-search --extra memory-pdf --extra browser` |
+| Extras desaparecen tras `uv sync` | `uv sync --extra X` es reemplazante, no aditivo | Siempre usar el comando canónico con los 4 extras juntos |
