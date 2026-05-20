@@ -229,56 +229,6 @@ def serve(
                         _sp = _sp.replace("{FECHA_ACTUAL}", _fecha)
                     else:
                         _sp = f"Fecha actual del sistema: {_fecha}\n\n{_sp}"
-
-                    # Inject tool catalog (one-liner per tool)
-                    _agent_tools = agent_kwargs.get("tools", [])
-                    if _agent_tools:
-                        try:
-                            _tool_lines = [
-                                f"  • {_t.spec.name}: {_t.spec.description}"
-                                for _t in _agent_tools
-                            ]
-                            _tools_block = (
-                                f"Herramientas del agente ({len(_agent_tools)}):\n"
-                                + "\n".join(_tool_lines)
-                            )
-                            _sp = _sp + "\n\n" + _tools_block
-                        except Exception as _te:
-                            logger.debug("Tool catalog injection failed: %s", _te)
-
-                    # Inject skills catalog from ~/.openjarvis/skills/
-                    try:
-                        import pathlib as _pl2
-                        _skills_dir = _pl2.Path("~/.openjarvis/skills").expanduser()
-                        if _skills_dir.exists():
-                            _skill_entries: list[str] = []
-                            for _sf in sorted(_skills_dir.glob("*.toml")):
-                                _sk_name = _sf.stem
-                                _sk_desc = ""
-                                try:
-                                    try:
-                                        import tomllib as _tl
-                                    except ImportError:
-                                        import tomli as _tl  # type: ignore[no-redef]
-                                    with open(_sf, "rb") as _fh:
-                                        _sd = _tl.load(_fh)
-                                    _sk_name = _sd.get("skill", {}).get("name", _sf.stem)
-                                    _sk_desc = _sd.get("skill", {}).get("description", "")
-                                except Exception:
-                                    pass
-                                _skill_entries.append(
-                                    f"  • {_sk_name}: {_sk_desc}" if _sk_desc
-                                    else f"  • {_sk_name}"
-                                )
-                            if _skill_entries:
-                                _skills_block = (
-                                    f"Skills del agente ({len(_skill_entries)}):\n"
-                                    + "\n".join(_skill_entries)
-                                )
-                                _sp = _sp + "\n\n" + _skills_block
-                    except Exception as _sk_exc:
-                        logger.debug("Skills catalog injection failed: %s", _sk_exc)
-
                     agent_kwargs["system_prompt"] = _sp
 
                 agent = agent_cls(engine, model_name, **agent_kwargs)
