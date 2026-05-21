@@ -316,3 +316,45 @@ TEO no responde
 └── Frontend no carga en :5173
     └── npm run dev no está corriendo → revisar la ventana del script PS1
 ```
+
+---
+
+## Ideas para próximas sesiones
+
+### TEO responde con voz (Text-to-Speech) — IDEA PENDIENTE DE DISEÑO
+
+**Objetivo:** que TEO no solo reciba audio (ya funciona con Whisper), sino que devuelva sus respuestas habladas.
+
+**Idea original (TEO la sugirió):** usar `gTTS` + `simpleaudio`.
+
+**Problemas con ese enfoque:**
+- `gTTS` manda el texto a los servidores de Google → no es local-first
+- `simpleaudio.WaveObject.from_wave_file("output.mp3")` es un bug — simpleaudio no lee MP3, solo WAV
+- Integrar TTS como script standalone rompe la arquitectura del framework
+
+**Enfoque correcto para este ecosistema:**
+
+El ecosistema ya tiene **DBS_Audios** con XTTS/OpenVoice instalado y operativo.
+La integración correcta tiene dos vías, de menor a mayor complejidad:
+
+**Opción A — http_request desde TEO a DBS_Audios (rápido, sin tocar el framework)**
+```
+TEO genera texto → tool http_request → POST DBS_Audios/tts → audio WAV → reproduce en frontend
+```
+- No requiere modificar OpenJarvis
+- Solo necesita que DBS_Audios exponga un endpoint `/tts`
+- Frontend reproduce el audio via `<audio>` tag o Web Audio API
+
+**Opción B — Canal de voz nativo en OpenJarvis**
+```
+OpenJarvis channels/ → nuevo channel "voice_output" con backend XTTS local
+```
+- Más limpio arquitectónicamente
+- Requiere implementar `src/openjarvis/channels/voice_output.py`
+- XTTS clona la voz de Bernan (ya tiene el modelo entrenado en DBS_Audios)
+
+**Para la próxima sesión:**
+1. Verificar que DBS_Audios tiene un endpoint TTS activo (o activarlo)
+2. Decidir: Opción A (rápida) o Opción B (correcta)
+3. Si Opción A: añadir instrucción en system_prompt de TEO para invocar `http_request` al TTS cuando el usuario active "modo voz"
+4. Si Opción B: implementar `voice_output.py` usando el mismo patrón de `subprocess_whisper.py` (subprocess a Python XTTS)
