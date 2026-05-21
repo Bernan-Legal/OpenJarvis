@@ -24,7 +24,7 @@ model_size = sys.argv[1]
 audio_path = sys.argv[2]
 language   = sys.argv[3] if sys.argv[3] != "None" else None
 
-model = faster_whisper.WhisperModel(model_size, device="auto", compute_type="int8")
+model = faster_whisper.WhisperModel(model_size, device="cpu", compute_type="int8")
 segs, info = model.transcribe(audio_path, language=language)
 text = " ".join(s.text.strip() for s in segs)
 print(json.dumps({"text": text, "language": getattr(info, "language", None) or "es"}))
