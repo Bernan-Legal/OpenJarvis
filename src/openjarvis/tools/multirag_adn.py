@@ -10,7 +10,21 @@ from openjarvis.core.types import ToolResult
 from openjarvis.tools._stubs import BaseTool, ToolSpec
 
 _DEFAULT_URL = "http://127.0.0.1:8020"
+_MULTIRAG_ENV = "C:/proyectos_5090/MULTIRAG_ADN/.env"
 _TOKEN_CACHE: dict[str, str] = {}
+
+
+def _read_multirag_env_password() -> str:
+    """Read API_PASSWORD from MULTIRAG_ADN .env as fallback."""
+    try:
+        with open(_MULTIRAG_ENV, encoding="utf-8") as f:
+            for line in f:
+                line = line.strip()
+                if line.startswith("API_PASSWORD="):
+                    return line.split("=", 1)[1].strip()
+    except OSError:
+        pass
+    return ""
 
 
 def _get_token(base_url: str, username: str, password: str) -> str:
@@ -76,12 +90,12 @@ class MultiragAdnTool(BaseTool):
 
         base_url = os.environ.get("MULTIRAG_ADN_URL", _DEFAULT_URL).rstrip("/")
         username = os.environ.get("MULTIRAG_ADN_USERNAME", "bernan")
-        password = os.environ.get("MULTIRAG_ADN_PASSWORD", "")
+        password = os.environ.get("MULTIRAG_ADN_PASSWORD", "") or _read_multirag_env_password()
 
         if not password:
             return ToolResult(
                 tool_name="multirag_adn",
-                content="MULTIRAG_ADN_PASSWORD no configurada. Agrega la variable de entorno en Iniciar_TEO.bat.",
+                content="No se encontró credencial para MULTIRAG_ADN. Configura MULTIRAG_ADN_PASSWORD en Iniciar_TEO.bat o verifica que el .env de MULTIRAG tenga API_PASSWORD.",
                 success=False,
             )
 
