@@ -52,6 +52,8 @@ ejecuta herramientas y conecta con los demás proyectos del stack.
 | **11434** | Ollama | `ollama serve` | Siempre activo — todos los modelos locales |
 | **8000** | DeepBernan Anonymizer | FastAPI | Permanentemente ocupado |
 | **8010** | DeepBernan Anonymizer | FastAPI (fallback) | Cuando hay conflicto con DBLab |
+| **8020** | MULTIRAG_ADN | FastAPI + JWT | RAG legal CR — iniciar con `MULTIRAG ADN.bat` |
+| **8521** | MULTIRAG_ADN | Streamlit UI | Interfaz web de MULTIRAG |
 | **8530** | DBS Beauty Try-On | Streamlit | UI de prueba virtual |
 | **8030** | DBS Beauty Try-On | FastAPI + MediaPipe | Backend visión |
 | **8188** | DBSVideos Pro | ComfyUI | Generación de video |
@@ -169,18 +171,19 @@ Flujo: TEO → respuesta texto → llamada HTTP a DBS_Audios → audio con voz d
 
 ---
 
-## Estado del proyecto — 20 Mayo 2026 (sesión en curso)
+## Estado del proyecto — 20 Mayo 2026 (actualizado)
 
 ### Funcionando correctamente
 
 - TEO responde via `/v1/chat/completions` en puerto 8222
 - Extensión Rust (`openjarvis_rust`) cargada
-- **24 herramientas activas** — ver lista completa en CLAUDE.md
+- **25 herramientas activas** — ver lista completa en CLAUDE.md (incluye `multirag_adn`)
+- **Micrófono / Speech-to-text FUNCIONAL** — backend `subprocess-whisper` vía Miniconda3
 - Browser automation (Playwright/Chromium) instalado y operativo
 - PDF extraction (`pdfplumber 0.11.9`) instalado via `memory-pdf`
 - **20 skills instalados** en `~/.openjarvis/skills/`
-- Frontend React compila sin errores, proxy configurado a 8222
-- Ollama con `teo:latest` disponible y respondiendo
+- Frontend React compila sin errores, proxy configurado a 8222 (timeout 180s)
+- Ollama con `teo:latest` disponible — `num_ctx 16384`
 - Memoria SQLite activa con recuperación selectiva
 - Trazas registrándose en `~/.openjarvis/traces.db`
 - **Subida de documentos** via botón Paperclip → POST `/v1/files/upload` → `~/.openjarvis/uploads/`
@@ -188,50 +191,48 @@ Flujo: TEO → respuesta texto → llamada HTTP a DBS_Audios → audio con voz d
 - `web_search` invocado correctamente para personas reales y datos actuales
 - `shell_exec` funciona en Windows con `subprocess` + `env=None` (bypass Rust bridge)
 - Fecha/hora correcta en system_prompt via `{FECHA_ACTUAL}` / `{HORA_ACTUAL}` en `serve.py`
+- `Iniciar_TEO.bat` verifica puertos 8222 y 5173 antes de arrancar (evita duplicados)
 
-### En progreso — sesión actual (20 May 2026)
+### Detalles técnicos de features implementados
 
-#### Speech-to-text (micrófono) — PENDIENTE COMPLETAR
+#### Speech-to-text (micrófono) — FUNCIONAL ✓
 
-**Situación:**
-- Web Speech API de Chrome falla con "error de red" (envía audio a Google — no local-first)
-- `faster-whisper>=1.0` en uv venv falla porque `onnxruntime 1.24.2` no tiene wheels para Python 3.10
-- `faster-whisper 1.0.3` SÍ funciona en **Miniconda3** (`C:\Users\USUARIO\miniconda3\`)
-- PyTorch `2.10.0.dev20251001+cu130` disponible en Miniconda3 (CUDA 13.0)
-- **Solución implementada:** backend `subprocess-whisper` que llama al Python de Miniconda3
+**Estado:** el micrófono funciona. Bernan puede dictar mensajes a TEO.
 
-**Archivos modificados:**
-- `src/openjarvis/speech/subprocess_whisper.py` — CREADO: backend que usa subprocess con miniconda3
-- `src/openjarvis/core/config.py` — añadido campo `python_exe` a `SpeechConfig`
-- `src/openjarvis/speech/_discovery.py` — `subprocess-whisper` en discovery order
-- `~/.openjarvis/config.toml` — añadir sección `[speech]` con `backend = "subprocess-whisper"`
-- `frontend/src/hooks/useSpeech.ts` — PENDIENTE: revertir a MediaRecorder + `/v1/speech/transcribe`
+**Causa del bug anterior:** `backend.transcribe()` era una llamada bloqueante (`subprocess.run`)
+dentro de un handler `async` de FastAPI. La primera transcripción carga el modelo Whisper (~30s),
+lo que congelaba el event loop de uvicorn y hacía que el proxy de Vite agotara su timeout (30s),
+causando `TypeError: Failed to fetch` en el browser.
 
-**Para activar el micrófono (próxima sesión si se interrumpe):**
-1. Verificar que `src/openjarvis/speech/subprocess_whisper.py` existe
-2. Añadir a `~/.openjarvis/config.toml`:
-   ```toml
-   [speech]
-   backend = "subprocess-whisper"
-   model = "base"
-   language = "es"
-   python_exe = "C:/Users/USUARIO/miniconda3/python.exe"
-   ```
-3. Revertir `frontend/src/hooks/useSpeech.ts` a MediaRecorder + `fetchSpeechHealth` + `transcribeAudio`
-4. Reiniciar TEO
-5. Al primer uso, descargará modelo Whisper `base` a `~/.cache/huggingface/`
+**Fix aplicado (commit `96856b7`):**
+- `api_routes.py` — transcripción corre en `loop.run_in_executor(None, ...)` (thread pool)
+- `vite.config.ts` — timeout del proxy `/v1` aumentado de 30s a 180s
+- `subprocess_whisper.py` — error explícito si el subprocess no produce output (`lines[-1]` IndexError)
 
-### Cambios recientes significativos — sesión 20 May 2026
+**Advertencia:** la **primera** transcripción toma 20-35s (carga del modelo Whisper a RAM).
+Las siguientes son inmediatas (modelo en caché del proceso mientras TEO esté corriendo).
+
+**Configuración activa en `~/.openjarvis/config.toml`:**
+```toml
+[speech]
+backend = "subprocess-whisper"
+model = "base"
+language = "es"
+python_exe = "C:/Users/USUARIO/miniconda3/python.exe"
+```
+
+### Cambios recientes significativos
 
 | Commit | Cambio | Descripción |
 |--------|--------|-------------|
-| `216651d` | fix speech lang + error display | `es-CR`→`es`, errores visibles en UI, tooltip siempre activo |
-| `705a905` | fix file_read rules en prompts | DEBES/PROHIBIDO para `file_read`/`pdf_extract` en system_prompt y Modelfile |
-| `802f20a` | feat microphone + document upload | Web Speech API + Paperclip + `/v1/files/upload` backend |
-| `e3d2e25` | fix system_prompt en function_calling | `_run_function_calling` no pasaba system_prompt a `_build_messages` |
-| `8f170e0` | fix wiring system_prompt en serve.py | Leer `config.agent.system_prompt` y pasarlo al OrchestratorAgent |
-| `ce3a212` | fix tavily+ddgs reaparecen | Comando canónico con 4 extras juntos |
-| `c2174b6` | fix shell_exec Windows | Bypass Rust bridge + `env=None` + parsear exit code |
+| `96856b7` | fix: speech transcription run_in_executor + proxy timeout | Micrófono "Failed to fetch" resuelto |
+| `997741e` | docs: README + NEXUS update | Notas sesión 20 May 2026 noche |
+| `e3d2e25` | fix: system_prompt en function_calling | `_run_function_calling` no pasaba system_prompt |
+| `8f170e0` | fix: wiring system_prompt en serve.py | Leer `config.agent.system_prompt` y pasar al agente |
+| `ce3a212` | fix: restaurar tavily+ddgs | Comando canónico con 4 extras juntos |
+| `15ad11f` | fix: retry model fetch en startup | Prefiere `teo:latest` como default |
+| `705a905` | fix: file_read rules en prompts | DEBES/PROHIBIDO para file_read/pdf_extract |
+| `802f20a` | feat: microphone + document upload | Web Speech API + Paperclip + upload backend |
 
 ### Cambios anteriores significativos
 
@@ -307,9 +308,10 @@ TEO no responde
 ├── Upload de archivos da 405
 │   └── TEO corriendo con código viejo → REINICIAR TEO con nuevo código
 │
-├── Micrófono no funciona / "error de red"
-│   ├── useSpeech.ts usa Web Speech API (Google) → revertir a MediaRecorder + backend
-│   └── Speech backend no activo → añadir [speech] en config.toml y reiniciar TEO
+├── Micrófono gris o "Failed to fetch"
+│   ├── TEO no reiniciado → Ctrl+F5 en browser; esperar hasta 35s la primera vez (carga modelo)
+│   ├── Speech backend no activo → verificar [speech] en config.toml y reiniciar TEO
+│   └── Puerto 8222 ocupado por instancia anterior → matar PID, reiniciar con Iniciar_TEO.bat
 │
 └── Frontend no carga en :5173
     └── npm run dev no está corriendo → revisar la ventana del script PS1

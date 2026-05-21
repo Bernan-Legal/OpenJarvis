@@ -195,9 +195,9 @@ El proxy de Vite redirige `/v1/*` y `/health` a `http://127.0.0.1:8222`.
 ## TEO — Agente personalizado
 
 - **Modelo Ollama:** `teo:latest` (Modelfile sobre `qwen2.5:14b`)
-- **Parámetros:** `num_ctx 8192`, `temperature 0.65`, `top_p 0.9`, `repeat_penalty 1.12`
+- **Parámetros:** `num_ctx 16384`, `temperature 0.65`, `top_p 0.9`, `repeat_penalty 1.12`
 - **Agente:** `orchestrator` con hasta 5 turnos
-- **Herramientas activas (24):** `think`, `calculator`, `web_search`, `code_interpreter`, `file_read`, `shell_exec`, `file_write`, `http_request`, `pdf_extract`, `retrieval`, `memory_store`, `memory_retrieve`, `memory_search`, `git_status`, `git_diff`, `git_log`, `agent_spawn`, `repl`, `llm`, `browser_navigate`, `browser_extract`, `browser_screenshot`, `browser_click`, `browser_type`
+- **Herramientas activas (25):** `think`, `calculator`, `web_search`, `code_interpreter`, `file_read`, `shell_exec`, `file_write`, `http_request`, `pdf_extract`, `retrieval`, `memory_store`, `memory_retrieve`, `memory_search`, `git_status`, `git_diff`, `git_log`, `agent_spawn`, `repl`, `llm`, `browser_navigate`, `browser_extract`, `browser_screenshot`, `browser_click`, `browser_type`, `multirag_adn`
 - **Skills instalados (20):** `~/.openjarvis/skills/` — `pdf-summarize`, `topic-research`, `data-analyze`, `translate-doc`, `daily-digest`, `compare-docs`, `security-scan`, `code-test-gen`, y 12 más
 - **Memoria:** SQLite, `top_k=3`, `min_score=0.15`, max 1024 tokens de contexto
 - **Modelfile:** `Modelfile_TEO.txt` en la raíz del repo
@@ -269,7 +269,8 @@ uv run pytest tests/ -v
 | Ollama en `localhost` vs `127.0.0.1` | Docker intercepta `::1:11434` | Config usa `127.0.0.1` explícitamente |
 | `maturin develop` sin flag `-m` | Instala en el venv equivocado | Siempre correr desde raíz con `-m` |
 | TAVILY_API_KEY no disponible | `.secrets.ps1` no cargado | Iniciar via `Iniciar_TEO.bat` o el script PS1 |
-| `audio_transcribe` no disponible | `faster-whisper` requiere Python 3.11+; entorno es 3.10 | Pendiente hasta migrar Python o usar Whisper API |
+| Micrófono / `subprocess-whisper` bloqueaba el event loop | `backend.transcribe()` era blocking en handler async; Vite proxy timeout 30s lo cortaba | `run_in_executor` en `api_routes.py`; proxy timeout → 180s en `vite.config.ts` |
+| TEO falla al arrancar con `[Errno 10048]` | Puerto 8222 ocupado por instancia anterior (doble click en bat) | `Iniciar_TEO.bat` ahora verifica el puerto antes de arrancar; o matar PID manualmente |
 | Browser tools sin respuesta | Playwright no instalado o binarios faltantes | `uv sync --extra browser && uv run playwright install chromium` |
 | `web_search` falla / "No search backend" | `uv sync --extra X` sin incluir `tools-search` eliminó tavily+ddgs | `uv sync --extra server --extra tools-search --extra memory-pdf --extra browser` |
 | Extras desaparecen tras `uv sync` | `uv sync --extra X` es reemplazante, no aditivo | Siempre usar el comando canónico con los 4 extras juntos |
