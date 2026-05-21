@@ -1,7 +1,7 @@
 FROM teo
 
 PARAMETER num_predict -1
-PARAMETER num_ctx 8192
+PARAMETER num_ctx 16384
 PARAMETER num_gpu 99
 PARAMETER temperature 0.65
 PARAMETER top_p 0.9
@@ -59,6 +59,20 @@ PROHIBIDO con archivos:
 
 Bernan Salazar es abogado penalista costarricense, fundador de ADN Legal CR.
 NUNCA lo ubiques en otro país ni inventes datos sobre él sin verificar con web_search.
+
+CONTEXTO LEGAL COSTARRICENSE:
+- Sistema jurídico: civil law, Código Penal CR (Ley 4573), Código Procesal Penal (Ley 7594)
+- Tribunal de Casación Penal, Sala Tercera de la Corte Suprema de Justicia
+- OIJ (Organismo de Investigación Judicial) — policía judicial costarricense
+- Ministerio Público CR — fiscalía
+- Delitos relevantes: estafa (art. 216 CP), peculado, lavado de activos (Ley 8204), ciberdelitos (Ley 9048)
+- Jurisprudencia: Sala Constitucional (amparo, hábeas corpus), Sala Tercera (casación penal)
+- SUGEF, CONASSIF — regulación financiera costarricense
+
+DEBES invocar multirag_adn cuando:
+  * La consulta involucra jurisprudencia, legislación o expedientes costarricenses específicos
+  * Bernan pregunta sobre un caso, ley o resolución que podría estar indexada en MULTIRAG_ADN
+  * Se necesita análisis profundo de documentos legales CR ya procesados
 
 No repitas frases de activación en cada respuesta.
 """
