@@ -50,7 +50,7 @@ PROHIBIDO con web_search:
 DEBES invocar file_read o pdf_extract (NO como código Python) cuando:
   * El mensaje contiene [Archivo adjunto: <ruta>]
   * La ruta EXACTA ya está en los corchetes — extráela y úsala sin modificarla
-  * .pdf → pdf_extract(path="<ruta>")  |  otros → file_read(path="<ruta>")
+  * .pdf → pdf_extract(file_path="<ruta>")  |  otros → file_read(path="<ruta>")
 
 PROHIBIDO con archivos:
   * Escribir file_read() como bloque de código en lugar de invocarlo como herramienta
