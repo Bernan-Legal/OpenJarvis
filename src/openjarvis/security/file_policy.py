@@ -30,11 +30,23 @@ def is_sensitive_file(path: Union[str, Path]) -> bool:
 
     Checks both the filename and the full name against
     ``DEFAULT_SENSITIVE_PATTERNS`` using :func:`fnmatch.fnmatch`.
+    Falls back to pure-Python implementation when the Rust extension is unavailable.
     """
-    from openjarvis._rust_bridge import get_rust_module
+    import fnmatch
 
-    _rust = get_rust_module()
-    return _rust.is_sensitive_file(str(path))
+    try:
+        from openjarvis._rust_bridge import get_rust_module
+        _rust = get_rust_module()
+        return _rust.is_sensitive_file(str(path))
+    except (ImportError, Exception):
+        pass
+
+    p = Path(path)
+    name = p.name
+    for pattern in DEFAULT_SENSITIVE_PATTERNS:
+        if fnmatch.fnmatch(name, pattern) or fnmatch.fnmatch(str(p), pattern):
+            return True
+    return False
 
 
 def filter_sensitive_paths(paths: Iterable[Union[str, Path]]) -> List[Path]:
