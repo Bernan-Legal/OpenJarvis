@@ -87,6 +87,8 @@ class SubprocessWhisperBackend(SpeechBackend):
 
             # Last non-empty line is the JSON output
             lines = [l for l in result.stdout.strip().splitlines() if l.strip()]
+            if not lines:
+                raise RuntimeError(f"No output from transcription subprocess. stderr: {result.stderr.strip()}")
             data = json.loads(lines[-1])
             return TranscriptionResult(
                 text=data.get("text", ""),

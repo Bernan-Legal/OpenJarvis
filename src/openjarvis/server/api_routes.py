@@ -605,6 +605,8 @@ speech_router = APIRouter(prefix="/v1/speech", tags=["speech"])
 @speech_router.post("/transcribe")
 async def transcribe_speech(request: Request):
     """Transcribe uploaded audio to text."""
+    import asyncio
+
     backend = getattr(request.app.state, "speech_backend", None)
     if backend is None:
         raise HTTPException(status_code=501, detail="Speech backend not configured")
@@ -615,13 +617,24 @@ async def transcribe_speech(request: Request):
         raise HTTPException(status_code=400, detail="Missing 'file' field")
 
     audio_bytes = await audio_file.read()
+    if not audio_bytes:
+        raise HTTPException(status_code=400, detail="Empty audio file")
+
     language = form.get("language")
 
     # Detect format from filename
     filename = getattr(audio_file, "filename", "audio.wav")
     ext = filename.rsplit(".", 1)[-1] if "." in filename else "wav"
 
-    result = backend.transcribe(audio_bytes, format=ext, language=language or None)
+    # Run blocking subprocess in a thread so the event loop stays responsive
+    loop = asyncio.get_running_loop()
+    try:
+        result = await loop.run_in_executor(
+            None, lambda: backend.transcribe(audio_bytes, format=ext, language=language or None)
+        )
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Transcription error: {exc}") from exc
+
     return {
         "text": result.text,
         "language": result.language,

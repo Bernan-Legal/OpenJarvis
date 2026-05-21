@@ -52,7 +52,11 @@ export default defineConfig({
   server: {
     port: 5173,
     proxy: {
-      '/v1': process.env.VITE_API_URL || 'http://127.0.0.1:8222',
+      '/v1': {
+        target: process.env.VITE_API_URL || 'http://127.0.0.1:8222',
+        proxyTimeout: 180000,
+        timeout: 180000,
+      },
       '/health': process.env.VITE_API_URL || 'http://127.0.0.1:8222',
     },
   },
