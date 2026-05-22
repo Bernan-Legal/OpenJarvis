@@ -129,7 +129,7 @@ Flujo: TEO → respuesta texto → llamada HTTP a DBS_Audios → audio con voz d
 3. Bernan envía mensaje a TEO (texto, voz, o documento adjunto)
    │
    ├── POST /v1/chat/completions
-   ├── orchestrator agent maneja el turno (máx 5)
+   ├── orchestrator agent maneja el turno (máx 8)
    ├── TEO decide qué herramientas usar (24 activas):
    │   ├── think / calculator    → razonamiento y cálculo
    │   ├── web_search            → Tavily API (info actual)
@@ -171,7 +171,7 @@ Flujo: TEO → respuesta texto → llamada HTTP a DBS_Audios → audio con voz d
 
 ---
 
-## Estado del proyecto — 20 Mayo 2026 (actualizado)
+## Estado del proyecto — 22 Mayo 2026 (actualizado)
 
 ### Funcionando correctamente
 
@@ -225,6 +225,7 @@ python_exe = "C:/Users/USUARIO/miniconda3/python.exe"
 
 | Commit | Cambio | Descripción |
 |--------|--------|-------------|
+| (22 May) | fix: startup + executor behavior | Botón .lnk corregido; `max_turns→8`; `poll_tool_budget→15`; reglas DEBES en system_prompt; `multirag_adn` activo |
 | `96856b7` | fix: speech transcription run_in_executor + proxy timeout | Micrófono "Failed to fetch" resuelto |
 | `997741e` | docs: README + NEXUS update | Notas sesión 20 May 2026 noche |
 | `e3d2e25` | fix: system_prompt en function_calling | `_run_function_calling` no pasaba system_prompt |

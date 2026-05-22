@@ -16,7 +16,7 @@ class LoopGuardConfig:
     enabled: bool = True
     max_identical_calls: int = 3       # SHA-256 of (tool_name, arguments)
     ping_pong_window: int = 6          # detect A-B-A-B cycling
-    poll_tool_budget: int = 5          # max calls to same polling tool
+    poll_tool_budget: int = 15         # max calls to same polling tool
     max_context_messages: int = 100    # context overflow threshold
 
 

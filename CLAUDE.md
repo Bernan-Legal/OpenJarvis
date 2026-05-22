@@ -124,7 +124,8 @@ max_tokens = 4096
 
 [agent]
 default_agent = "orchestrator"
-tools = "think,calculator,web_search,code_interpreter,file_read,shell_exec,file_write,http_request,pdf_extract,retrieval,memory_store,memory_retrieve,memory_search,git_status,git_diff,git_log,agent_spawn,repl,llm,browser_navigate,browser_extract,browser_screenshot,browser_click,browser_type"
+max_turns = 8                  # aumentado de 5; evita "Maximum turns reached" en tareas largas
+tools = "think,calculator,web_search,code_interpreter,file_read,shell_exec,file_write,http_request,pdf_extract,retrieval,memory_store,memory_retrieve,memory_search,git_status,git_diff,git_log,agent_spawn,repl,llm,browser_navigate,browser_extract,browser_screenshot,browser_click,browser_type,multirag_adn"
 
 [server]
 host = "127.0.0.1"
@@ -196,7 +197,7 @@ El proxy de Vite redirige `/v1/*` y `/health` a `http://127.0.0.1:8222`.
 
 - **Modelo Ollama:** `teo:latest` (Modelfile sobre `qwen2.5:14b`)
 - **Parámetros:** `num_ctx 16384`, `temperature 0.65`, `top_p 0.9`, `repeat_penalty 1.12`
-- **Agente:** `orchestrator` con hasta 5 turnos
+- **Agente:** `orchestrator` con hasta 8 turnos (`max_turns = 8` en config.toml)
 - **Herramientas activas (25):** `think`, `calculator`, `web_search`, `code_interpreter`, `file_read`, `shell_exec`, `file_write`, `http_request`, `pdf_extract`, `retrieval`, `memory_store`, `memory_retrieve`, `memory_search`, `git_status`, `git_diff`, `git_log`, `agent_spawn`, `repl`, `llm`, `browser_navigate`, `browser_extract`, `browser_screenshot`, `browser_click`, `browser_type`, `multirag_adn`
 - **Skills instalados (20):** `~/.openjarvis/skills/` — `pdf-summarize`, `topic-research`, `data-analyze`, `translate-doc`, `daily-digest`, `compare-docs`, `security-scan`, `code-test-gen`, y 12 más
 - **Memoria:** SQLite, `top_k=3`, `min_score=0.15`, max 1024 tokens de contexto
@@ -274,3 +275,6 @@ uv run pytest tests/ -v
 | Browser tools sin respuesta | Playwright no instalado o binarios faltantes | `uv sync --extra browser && uv run playwright install chromium` |
 | `web_search` falla / "No search backend" | `uv sync --extra X` sin incluir `tools-search` eliminó tavily+ddgs | `uv sync --extra server --extra tools-search --extra memory-pdf --extra browser` |
 | Extras desaparecen tras `uv sync` | `uv sync --extra X` es reemplazante, no aditivo | Siempre usar el comando canónico con los 4 extras juntos |
+| `call .secrets.bat` falla en ventana anidada | `cmd /k "... call .secrets.bat ..."` no reconoce nombres `.file` | Cargar `.secrets.bat` en el bat padre; la ventana hija hereda el entorno |
+| TEO escribe bloques `pip install` en vez de ejecutar | `poll_tool_budget=5` en `loop_guard.py` bloquea la tool tras 5 llamadas; `max_turns` demasiado bajo | `poll_tool_budget → 15` en `loop_guard.py`; `max_turns → 8` en config.toml; reglas DEBES en system_prompt |
+| Acceso directo `.lnk` con Arguments inválidos | Campo Arguments del shortcut tenía `/c "ruta.bat"` — inválido para target CMD | Target → `powershell.exe`; Arguments → `-ExecutionPolicy Bypass -NoProfile -File "start_openjarvis.ps1"` |
